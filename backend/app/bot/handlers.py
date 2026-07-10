@@ -169,9 +169,16 @@ async def _status_text() -> str:
             f"Последний заказ: <code>{html.escape(monitor.last_source)}</code> — "
             f"{html.escape(monitor.last_title)}"
         )
+    from app.services.queue import queued_count, has_active_card
+
+    async with async_session() as session:
+        waiting = await queued_count(session)
+        active = await has_active_card(session)
+
     lines += [
         "",
-        f"В очереди (черновики): <b>{dash['pending']}</b>",
+        f"Активная карточка: <b>{'да' if active else 'нет'}</b>",
+        f"В очереди (ждут показа): <b>{waiting}</b>",
         f"Сегодня: seen <b>{dash['today']['seen']}</b> · "
         f"matched <b>{dash['today']['matched']}</b> · "
         f"карточек <b>{dash['today']['notified']}</b> · "
@@ -181,6 +188,8 @@ async def _status_text() -> str:
         f"· Telegram MTProto: <b>вкл</b> (отдельный сервис)",
         f"· FL.ru: <b>{'вкл' if settings.fl_ru_enabled else 'выкл'}</b>",
         f"· Kwork: <b>{'вкл' if settings.kwork_enabled else 'выкл'}</b>",
+        f"· Freelance.ru: <b>{'вкл' if settings.freelance_ru_enabled else 'выкл'}</b>",
+        f"· Freelancehunt: <b>{'вкл' if settings.freelancehunt_enabled else 'выкл'}</b>",
         f"· LLM: <b>{'вкл' if settings.llm_enabled else 'выкл'}</b>",
         f"· Worker: <b>{'вкл' if settings.worker_enabled else 'выкл'}</b>",
     ]
@@ -232,21 +241,41 @@ async def _stats_text() -> str:
 
 
 async def _queue_text() -> str:
-    from app.services.analytics import get_dashboard
+    from app.services.queue import get_active_card, list_queued, queued_count
 
     async with async_session() as session:
-        dash = await get_dashboard(session)
-    lines = [f"<b>Очередь</b> — ждут действия: <b>{dash['pending']}</b>", ""]
-    if not dash["queue"]:
-        lines.append("Пусто. Когда найдётся заказ — придёт карточка.")
+        waiting = await queued_count(session)
+        active = await get_active_card(session)
+        queued = await list_queued(session, limit=12)
+
+    lines = [
+        "<b>Очередь</b> — одна активная карточка в чате",
+        "",
+        f"Активная: <b>{'#' + str(active.id) if active else 'нет'}</b>"
+        + (
+            f" · <code>{html.escape(active.source)}</code> — "
+            f"{html.escape(active.title[:70])}"
+            if active
+            else ""
+        ),
+        f"Ждут показа: <b>{waiting}</b>",
+        "",
+    ]
+    if not queued and not active:
+        lines.append("Пусто. Когда найдётся заказ — придёт одна карточка.")
         return "\n".join(lines)
-    for o in dash["queue"]:
-        lines.append(
-            f"· <code>{html.escape(o.source)}</code> "
-            f"#{o.id} score {o.match_score:.0f} — "
-            f"{html.escape(o.title[:80])}"
-        )
-    lines.append("\nКарточки уже в чате — кнопки под каждым заказом.")
+    if queued:
+        lines.append("<b>Ожидают:</b>")
+        for o in queued:
+            lines.append(
+                f"· <code>{html.escape(o.source)}</code> "
+                f"#{o.id} score {o.match_score:.0f} — "
+                f"{html.escape(o.title[:80])}"
+            )
+    if active:
+        lines.append("\nОтветьте на активную карточку — следующая придёт сама.")
+    elif waiting:
+        lines.append("\nАктивной нет — сейчас покажу следующую.")
     return "\n".join(lines)
 
 
@@ -261,14 +290,19 @@ def _sources_text() -> str:
             f"(каждые {s.fl_ru_poll_interval_seconds}с)",
             f"{'🟢' if s.kwork_enabled else '⚪'} Kwork "
             f"(каждые {s.kwork_poll_interval_seconds}с)",
+            f"{'🟢' if s.freelance_ru_enabled else '⚪'} Freelance.ru "
+            f"(каждые {s.freelance_ru_poll_interval_seconds}с)",
+            f"{'🟢' if s.freelancehunt_enabled else '⚪'} Freelancehunt "
+            f"(каждые {s.freelancehunt_poll_interval_seconds}с)",
             "",
             f"LLM: {'🟢' if s.llm_enabled else '⚪'} {html.escape(s.llm_model)}",
             f"Worker API: {'🟢' if s.worker_enabled else '⚪'}",
             "",
             f"Режим сейчас: <b>{monitor.status_label()}</b>",
             "",
-            "Вкл/выкл площадок — через Railway Variables "
-            "(FL_RU_ENABLED / KWORK_ENABLED), затем redeploy.",
+            "Вкл/выкл площадок — Railway Variables "
+            "(FL_RU_ENABLED / KWORK_ENABLED / FREELANCE_RU_ENABLED / "
+            "FREELANCEHUNT_ENABLED), затем redeploy.",
         ]
     )
 
@@ -281,15 +315,15 @@ def _help_text() -> str:
             "Кнопки <b>под строкой ввода</b>:",
             f"· {BTN_STATUS} — ищет или на паузе, последние события",
             f"· {BTN_STATS} — воронка и цифры",
-            f"· {BTN_QUEUE} — заказы, ждущие вашего решения",
+            f"· {BTN_QUEUE} — сколько ждут + активная; при пустой активной — следующая",
             f"· {BTN_SOURCES} — какие площадки включены",
-            f"· {BTN_PAUSE} / {BTN_RESUME} — не слать карточки / снова искать",
+            f"· {BTN_PAUSE} / {BTN_RESUME} — копить очередь без карточек / снова слать",
             "",
-            "На карточке заказа:",
-            "· ✅ Отправить — отметить отправленным",
-            "· 🚀 Kwork отклик — отправить через API",
+            "На карточке заказа (одна за раз):",
+            "· ✅ Отправить — отметить отправленным → следующая",
+            "· 🚀 Kwork отклик — отправить через API → следующая",
             "· ✏️ Править — прислать новый текст одним сообщением",
-            "· ⏭ Пропуск / 🔗 Открыть",
+            "· ⏭ Пропуск / 🔗 Открыть → следующая",
         ]
     )
 
@@ -342,9 +376,18 @@ async def btn_stats(message: Message) -> None:
 
 @router.message(F.text == BTN_QUEUE)
 async def btn_queue(message: Message) -> None:
-    await message.answer(
-        await _queue_text(), reply_markup=main_keyboard(), parse_mode="HTML"
-    )
+    from app.services.queue import dispatch_next, has_active_card
+
+    text = await _queue_text()
+    await message.answer(text, reply_markup=main_keyboard(), parse_mode="HTML")
+    async with async_session() as session:
+        if not await has_active_card(session) and not monitor.paused:
+            nxt = await dispatch_next(session)
+            if nxt:
+                await message.answer(
+                    f"Показана следующая из очереди: #{nxt.id}",
+                    reply_markup=main_keyboard(),
+                )
 
 
 @router.message(F.text == BTN_SOURCES)
@@ -363,9 +406,10 @@ async def btn_help(message: Message) -> None:
 async def btn_pause(message: Message) -> None:
     monitor.pause()
     await message.answer(
-        "⏸ Поиск на паузе.\n"
-        "Ingest идёт, но <b>новые карточки не приходят</b>.\n"
-        f"Нажмите «{BTN_RESUME}», чтобы снова получать заказы.",
+        "⏸ Пауза карточек.\n"
+        "Ingest и матчинг идут, очередь <b>копится</b>, "
+        "но в чат ничего не шлём.\n"
+        f"Нажмите «{BTN_RESUME}», чтобы показать следующую.",
         reply_markup=main_keyboard(),
         parse_mode="HTML",
     )
@@ -373,16 +417,21 @@ async def btn_pause(message: Message) -> None:
 
 @router.message(F.text == BTN_RESUME)
 async def btn_resume(message: Message) -> None:
+    from app.services.queue import dispatch_next
+
     monitor.resume()
     await message.answer(
-        "▶️ Снова ищем заказы.\nПодходящие будут приходить карточками в этот чат.",
+        "▶️ Снова показываем карточки (по одной).",
         reply_markup=main_keyboard(),
         parse_mode="HTML",
     )
+    await dispatch_next()
 
 
 @router.callback_query(F.data.startswith("oh:skip:"))
 async def cb_skip(query: CallbackQuery) -> None:
+    from app.services.queue import dispatch_next
+
     order_id = int(query.data.split(":")[2])
     async with async_session() as session:
         order = await session.get(Order, order_id)
@@ -393,6 +442,7 @@ async def cb_skip(query: CallbackQuery) -> None:
         await session.commit()
     await query.answer("Пропущено")
     await query.message.edit_reply_markup(reply_markup=None)
+    await dispatch_next()
 
 
 @router.callback_query(F.data.startswith("oh:edit:"))
@@ -433,6 +483,8 @@ async def on_text(message: Message) -> None:
 
 @router.callback_query(F.data.startswith("oh:send:"))
 async def cb_send(query: CallbackQuery) -> None:
+    from app.services.queue import dispatch_next
+
     order_id = int(query.data.split(":")[2])
     async with async_session() as session:
         order = await session.get(Order, order_id)
@@ -450,11 +502,13 @@ async def cb_send(query: CallbackQuery) -> None:
             await push_to_handler_lead(order, draft.text)
     await query.answer("Отмечено как отправлено")
     await query.message.edit_reply_markup(reply_markup=None)
+    await dispatch_next()
 
 
 @router.callback_query(F.data.startswith("oh:kwork:"))
 async def cb_kwork(query: CallbackQuery) -> None:
     from app.connectors.kwork import KworkConnector
+    from app.services.queue import dispatch_next
 
     order_id = int(query.data.split(":")[2])
     async with async_session() as session:
@@ -485,6 +539,7 @@ async def cb_kwork(query: CallbackQuery) -> None:
             await query.answer(f"Ошибка: {e}", show_alert=True)
             return
     await query.message.edit_reply_markup(reply_markup=None)
+    await dispatch_next()
 
 
 def build_dispatcher() -> Dispatcher:

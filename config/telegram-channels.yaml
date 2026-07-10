@@ -1,5 +1,5 @@
 # Каналы для мониторинга.
-# 1) Подпишитесь аккаунтом TELEGRAM_USER_SESSION
+# 1) Подпишитесь аккаунтом TELEGRAM_USER_SESSION на каждый enabled-канал
 # 2) enabled: true только для реальных @username (проверьте t.me/<name>)
 # Невалидные username больше не роняют воркер — просто skip.
 
@@ -40,9 +40,50 @@ channels:
     enabled: true
     categories: [dev, remote]
 
-  # --- выключены: USERNAME_INVALID / не существуют ---
+  # --- новые (подпишитесь session-аккаунтом, затем redeploy mtproto) ---
+  - username: progjob
+    title: Работа для программистов
+    enabled: true
+    categories: [dev, web]
+
+  - username: freelance_vakansiii
+    title: Фриланс / вакансии
+    enabled: true
+    categories: [web, freelance]
+
+  - username: IT_Outstaff_projects
+    title: Outstaff / remote проекты
+    enabled: true
+    categories: [dev, outstaff]
+
+  - username: forwebdev
+    title: Webdev
+    enabled: true
+    categories: [web]
+
+  - username: js_jobs
+    title: JS jobs
+    enabled: true
+    categories: [js, web]
+
+  - username: frontend_jobs
+    title: Frontend jobs
+    enabled: true
+    categories: [frontend, web]
+
+  - username: backend_jobs
+    title: Backend jobs
+    enabled: true
+    categories: [backend]
+
+  - username: devschat
+    title: Dev chats / заказы
+    enabled: true
+    categories: [dev]
+
+  # --- выключены: USERNAME_INVALID / не существуют / шум ---
   - username: freelance_ru
-    title: (invalid)
+    title: (invalid as TG channel)
     enabled: false
     categories: []
 

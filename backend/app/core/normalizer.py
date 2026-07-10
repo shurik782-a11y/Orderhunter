@@ -70,3 +70,39 @@ def normalize_kwork_project(
         budget_text=budget_text,
         raw={"project_id": project_id},
     )
+
+
+def normalize_freelance_ru_task(
+    task_id: str,
+    title: str,
+    description: str,
+    url: str,
+    budget_text: str = "",
+) -> NormalizedOrder:
+    return NormalizedOrder(
+        external_id=f"freelance_ru:{task_id}",
+        source="freelance_ru",
+        title=title,
+        description=description,
+        url=url,
+        budget_text=budget_text,
+        raw={"task_id": task_id},
+    )
+
+
+def normalize_freelancehunt_project(
+    project_id: str,
+    title: str,
+    description: str,
+    url: str,
+    budget_text: str = "",
+) -> NormalizedOrder:
+    return NormalizedOrder(
+        external_id=f"freelancehunt:{project_id}",
+        source="freelancehunt",
+        title=title,
+        description=description,
+        url=url,
+        budget_text=budget_text,
+        raw={"project_id": project_id},
+    )

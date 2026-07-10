@@ -62,6 +62,16 @@ class Settings(BaseSettings):
     kwork_password: str = ""
     kwork_poll_interval_seconds: int = 300
 
+    freelance_ru_enabled: bool = False
+    freelance_ru_poll_interval_seconds: int = 300
+    freelance_ru_search_url: str = "https://freelance.ru/project/search?q=python"
+
+    freelancehunt_enabled: bool = False
+    freelancehunt_poll_interval_seconds: int = 300
+    freelancehunt_projects_url: str = (
+        "https://freelancehunt.com/projects/skill/veb-programmirovanie/99.html"
+    )
+
     handler_leads_enabled: bool = False
     handler_leads_url: str = "http://localhost:3000/api/leads"
 
@@ -73,6 +83,8 @@ class Settings(BaseSettings):
         "llm_enabled",
         "fl_ru_enabled",
         "kwork_enabled",
+        "freelance_ru_enabled",
+        "freelancehunt_enabled",
         "handler_leads_enabled",
         "worker_enabled",
         mode="before",
@@ -84,6 +96,8 @@ class Settings(BaseSettings):
     @field_validator(
         "fl_ru_poll_interval_seconds",
         "kwork_poll_interval_seconds",
+        "freelance_ru_poll_interval_seconds",
+        "freelancehunt_poll_interval_seconds",
         "port",
         mode="before",
     )

@@ -42,27 +42,42 @@ FL.ru baseline done (... projects marked seen)
 
 ## 4. Как откликаться (Assist)
 
-Карточка в @OrHu_bot:
+В чат приходит **одна** карточка. Остальные ждут в «Очередь». После Отправить / Пропуск / Kwork — сразу следующая.
 
-| Кнопка | FL.ru | Kwork |
-|--------|-------|-------|
+| Кнопка | FL.ru / Freelance.ru / Freelancehunt | Kwork |
+|--------|--------------------------------------|-------|
 | **Открыть** | страница заказа → вставить черновик вручную | то же |
-| **Отправить** | отметить у себя как отправленный | то же |
+| **Отправить** | отметить у себя как отправленный → next | то же |
 | **Kwork отклик** | — | отправка через API (тратит 1 connect) |
 | **Править** | новый текст одним сообщением | то же |
-| **Пропустить** | скрыть | скрыть |
+| **Пропустить** | скрыть → next | скрыть → next |
 
-На FL.ru автоотправку формы не делаем (ToS) — только черновик + ссылка.
+Автоотправку формы на FL / Freelance.ru / Freelancehunt не делаем (ToS) — только черновик + ссылка.
 
-## 5. Если в логах ошибка
+## 5. Freelance.ru / Freelancehunt
+
+В Railway Variables:
+
+```
+FREELANCE_RU_ENABLED=true
+FREELANCE_RU_SEARCH_URL=https://freelance.ru/project/search?q=python
+FREELANCEHUNT_ENABLED=true
+FREELANCEHUNT_PROJECTS_URL=https://freelancehunt.com/projects/skill/veb-programmirovanie/99.html
+```
+
+Логины не обязательны для публичной ленты. Первый прогон — baseline (старые не шлём).
+
+## 6. Если в логах ошибка
 
 | Лог | Действие |
 |-----|----------|
 | `Kwork auth failed` | проверить логин/пароль; иногда нужен email, не ник |
 | `Kwork poll failed` | подождать / смотреть текст error |
 | `FL.ru poll failed` | часто капча/вёрстка; мониторинг публичной ленты может работать и без логина |
+| `Freelance.ru poll failed` / `Freelancehunt poll failed` | вёрстка/блок; проверить URL ленты |
 | `Daily draft limit` | лимит на день; завтра или поднять `max_drafts_per_day` в `config/profile.yaml` |
 
-## 6. Проверка
+## 7. Проверка
 
-В боте: `/stats` — должны расти `seen` / `matched` / `notified` с источниками fl_ru и kwork.
+В боте: «Очередь» — ждут показа N; активная одна.  
+`/stats` — растут `seen` / `matched` / `notified` с источниками `fl_ru`, `kwork`, `freelance_ru`, `freelancehunt`.

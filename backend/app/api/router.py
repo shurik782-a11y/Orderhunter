@@ -5,11 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.connectors.telegram_bridge import ingest_telegram_payload
 from app.db.session import get_db
-from app.db.models import Draft, OrderStatus
 from app.services.analytics import get_funnel
 from app.services.pipeline import OrderPipeline
-from app.bot.handlers import notify_order_card
-from sqlalchemy import select
 
 router = APIRouter()
 
@@ -36,17 +33,14 @@ async def ingest_telegram(
     order = ingest_telegram_payload(body.model_dump())
     pipeline = OrderPipeline(session)
     row = await pipeline.ingest(order)
-    if not row or row.status not in (OrderStatus.DRAFTED,):
-        await session.commit()
-        return {"ok": True, "action": "ignored_or_duplicate", "order_id": row.id if row else None}
-
-    draft = await session.scalar(
-        select(Draft).where(Draft.order_id == row.id).order_by(Draft.id.desc())
-    )
     await session.commit()
-    if draft:
-        await notify_order_card(row, draft.text)
-    return {"ok": True, "action": "notified", "order_id": row.id}
+    if not row:
+        return {"ok": True, "action": "ignored_or_duplicate", "order_id": None}
+    return {
+        "ok": True,
+        "action": row.status.value if hasattr(row.status, "value") else str(row.status),
+        "order_id": row.id,
+    }
 
 
 @router.get("/analytics/funnel")

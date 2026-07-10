@@ -15,8 +15,27 @@ LLM_MODEL=deepseek/deepseek-chat
 WORKER_ENABLED=true
 FL_RU_ENABLED=false
 KWORK_ENABLED=false
+FREELANCE_RU_ENABLED=false
+FREELANCEHUNT_ENABLED=false
 HANDLER_LEADS_ENABLED=false
 ```
+
+После включения площадок (Assist: карточка → Открыть → вставить черновик):
+
+```
+FL_RU_ENABLED=true
+FL_RU_LOGIN=
+FL_RU_PASSWORD=
+KWORK_ENABLED=true
+KWORK_LOGIN=
+KWORK_PASSWORD=
+FREELANCE_RU_ENABLED=true
+FREELANCE_RU_SEARCH_URL=https://freelance.ru/project/search?q=python
+FREELANCEHUNT_ENABLED=true
+FREELANCEHUNT_PROJECTS_URL=https://freelancehunt.com/projects/skill/veb-programmirovanie/99.html
+```
+
+**Очередь карточек:** в чат уходит **одна** активная; остальные matched ждут в «Очередь». После Отправить / Пропуск / Kwork — следующая автоматически.
 
 **OpenRouter:** ключ `sk-or-...` + `LLM_BASE_URL=https://openrouter.ai/api/v1` + модель вида `deepseek/deepseek-chat`.  
 Если оставить `api.deepseek.com` с ключом OpenRouter — будет **401**.
@@ -40,6 +59,11 @@ INTERNAL_API_SECRET=
 CHANNELS_CONFIG=/app/config/telegram-channels.yaml
 POLL_INTERVAL_SECONDS=90
 ```
+
+**Подпишитесь session-аккаунтом** на каналы из `config/telegram-channels.yaml` с `enabled: true`, в т.ч.:
+`progjob`, `freelance_vakansiii`, `IT_Outstaff_projects`, `forwebdev`, `js_jobs`, `frontend_jobs`, `backend_jobs`, `devschat`
+(+ уже рабочие: `freelance_orders`, `frwork3`, `allw0rk`, …).
+Невалидные username в логах будут `skip`, без crash.
 
 Как получить:
 1. https://my.telegram.org → API development tools → `api_id` + `api_hash`

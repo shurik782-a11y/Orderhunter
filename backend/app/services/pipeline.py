@@ -47,11 +47,6 @@ class OrderPipeline:
 
         await bump_daily(self.session, "matched")
 
-        if monitor.paused:
-            return await self._save_order(
-                order, match, OrderStatus.MATCHED, brief=None
-            )
-
         min_notify = float(self.profile.thresholds.get("min_score_notify", 55))
         min_llm = float(self.profile.thresholds.get("min_score_llm", 50))
 
@@ -86,6 +81,7 @@ class OrderPipeline:
         if bundle is None:
             bundle = self.drafter._template_bundle(order, match)
 
+        # Queue as DRAFTED even while paused — cards stay silent until resume.
         row = await self._save_order(
             order, match, OrderStatus.DRAFTED, brief=bundle, score=score
         )
@@ -94,6 +90,10 @@ class OrderPipeline:
         )
         await self.session.commit()
         await self.session.refresh(row)
+
+        from app.services.queue import dispatch_next
+
+        await dispatch_next(self.session)
         return row
 
     async def _save_order(
