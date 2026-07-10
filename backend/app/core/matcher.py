@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -10,6 +11,7 @@ from app.core.normalizer import NormalizedOrder
 _BUDGET_PATTERNS = [
     re.compile(r"(\d[\d\s]*)\s*[-–]\s*(\d[\d\s]*)\s*(?:₽|руб|р\.?)", re.I),
     re.compile(r"от\s*(\d[\d\s]*)\s*(?:₽|руб|р\.?)", re.I),
+    re.compile(r"до\s*(\d[\d\s]*)\s*(?:₽|руб|р\.?)", re.I),
     re.compile(r"(\d[\d\s]*)\s*(?:₽|руб|р\.?)", re.I),
     re.compile(r"\$(\d[\d\s]*)", re.I),
 ]
@@ -31,9 +33,22 @@ def parse_budget_rub(text: str) -> int | None:
         except ValueError:
             continue
         if "$" in pat.pattern:
-            value *= 100
+            value *= 90  # rough USD→RUB for filter only
+        if value < 500:  # ignore noise like "1 руб"
+            continue
         return value
     return None
+
+
+@dataclass
+class MatchResult:
+    score: float
+    reasons: list[str]
+    case_slug: str
+    intent_id: str
+    intent_title: str
+    price_min_rub: int
+    client_need: str
 
 
 class ProfileData:
@@ -51,8 +66,15 @@ class ProfileData:
         return self.data.get("thresholds", {})
 
     @property
+    def pricing(self) -> dict:
+        return self.data.get("pricing", {})
+
+    @property
     def min_project_rub(self) -> int:
-        return int(self.data.get("pricing", {}).get("project_min_rub", 30000))
+        return int(self.pricing.get("project_min_rub", 20000))
+
+    def intents(self) -> dict:
+        return self.data.get("intents", {})
 
     def negative_terms(self) -> list[str]:
         return [t.lower() for t in self.data.get("skills_negative", [])]
@@ -61,45 +83,142 @@ class ProfileData:
         return [t.lower() for t in self.data.get("skills_positive", [])]
 
     def keyword_boost(self) -> dict[str, int]:
-        return {k.lower(): v for k, v in self.data.get("keywords_boost", {}).items()}
+        return {k.lower(): int(v) for k, v in self.data.get("keywords_boost", {}).items()}
+
+    def price_for_intent(self, intent_id: str) -> int:
+        intents = self.intents()
+        meta = intents.get(intent_id) or {}
+        key = meta.get("price_key", "project_min_rub")
+        return int(self.pricing.get(key, self.min_project_rub))
+
+
+def _contains(text: str, needle: str) -> bool:
+    """Substring match; short tokens require word-ish boundaries."""
+    if not needle:
+        return False
+    if len(needle) <= 4:
+        return re.search(rf"(?<![a-zа-я0-9_]){re.escape(needle)}(?![a-zа-я0-9_])", text) is not None
+    return needle in text
 
 
 class RulesMatcher:
+    """Fast rules-first matcher: intents → boosts → case → budget gate."""
+
     def __init__(self, profile: ProfileData):
         self.profile = profile
 
-    def match(self, order: NormalizedOrder) -> tuple[float, list[str], str]:
+    def match(self, order: NormalizedOrder) -> MatchResult:
         text = f"{order.title}\n{order.description}".lower()
         reasons: list[str] = []
         score = 0.0
 
         for term in self.profile.negative_terms():
-            if term in text:
-                return 0.0, [f"стоп-слово: {term}"], ""
+            if _contains(text, term) or (len(term) > 4 and term in text):
+                return MatchResult(
+                    0.0, [f"стоп: {term}"], "", "", "", 0, order.title[:160]
+                )
 
-        budget = order.budget_min_rub or parse_budget_rub(
-            f"{order.budget_text} {order.description}"
-        )
-        if budget is not None and budget < self.profile.min_project_rub:
-            return 0.0, [f"бюджет {budget} < {self.profile.min_project_rub}"], ""
+        intent_id, intent_title, intent_score, intent_hits = self._best_intent(text)
+        if intent_id:
+            score += intent_score
+            reasons.append(f"интент:{intent_id}(+{intent_score})")
+            for h in intent_hits[:3]:
+                reasons.append(f"· {h}")
+        else:
+            reasons.append("интент:неясен")
 
         for kw, boost in self.profile.keyword_boost().items():
-            if kw in text:
+            if _contains(text, kw):
                 score += boost
-                reasons.append(f"+{boost} {kw}")
+                if len(reasons) < 10:
+                    reasons.append(f"+{boost} {kw}")
 
         for skill in self.profile.positive_terms():
-            if skill in text:
-                score += 3
-                if len(reasons) < 8:
-                    reasons.append(f"+3 {skill}")
+            if _contains(text, skill):
+                score += 4
+                if len(reasons) < 12:
+                    reasons.append(f"+4 {skill}")
 
         case_slug = self._suggest_case(text)
         if case_slug:
-            score += 10
-            reasons.append(f"кейс: {case_slug}")
+            score += 12
+            reasons.append(f"кейс:{case_slug}")
 
-        return min(score, 100.0), reasons, case_slug
+        # Must have at least one intent OR strong tech signal
+        if not intent_id and score < 35:
+            return MatchResult(
+                min(score, 25.0),
+                reasons + ["слабо релевантно"],
+                case_slug,
+                "",
+                "",
+                self.profile.min_project_rub,
+                self._client_need(order, intent_title),
+            )
+
+        price_min = (
+            self.profile.price_for_intent(intent_id)
+            if intent_id
+            else self.profile.min_project_rub
+        )
+
+        budget = order.budget_min_rub or parse_budget_rub(
+            f"{order.budget_text} {order.description} {order.title}"
+        )
+        thr = self.profile.thresholds
+        if (
+            thr.get("reject_if_budget_below_min", True)
+            and budget is not None
+            and budget < price_min
+        ):
+            if thr.get("soft_budget") and budget >= int(price_min * 0.7):
+                score *= 0.7
+                reasons.append(f"бюджет {budget} чуть ниже {price_min}")
+            else:
+                return MatchResult(
+                    0.0,
+                    [f"бюджет {budget} < {price_min}"],
+                    case_slug,
+                    intent_id,
+                    intent_title,
+                    price_min,
+                    self._client_need(order, intent_title),
+                )
+
+        return MatchResult(
+            min(score, 100.0),
+            reasons,
+            case_slug,
+            intent_id,
+            intent_title,
+            price_min,
+            self._client_need(order, intent_title),
+        )
+
+    def _best_intent(self, text: str) -> tuple[str, str, float, list[str]]:
+        best_id = ""
+        best_title = ""
+        best_score = 0.0
+        best_hits: list[str] = []
+        for intent_id, meta in self.profile.intents().items():
+            kws = [str(k).lower() for k in meta.get("keywords", [])]
+            hits = [k for k in kws if _contains(text, k)]
+            if not hits:
+                continue
+            weight = float(meta.get("weight", 15))
+            sc = weight + min(len(hits) - 1, 4) * 4
+            if sc > best_score:
+                best_score = sc
+                best_id = intent_id
+                best_title = str(meta.get("title", intent_id))
+                best_hits = hits
+        return best_id, best_title, best_score, best_hits
+
+    def _client_need(self, order: NormalizedOrder, intent_title: str) -> str:
+        title = order.title.strip()
+        if intent_title:
+            return f"{intent_title}: {title}"[:220]
+        return title[:220]
 
     def _suggest_case(self, text: str) -> str:
         config_dir = Path(self.profile.data.get("_config_dir", "."))
@@ -111,8 +230,8 @@ class RulesMatcher:
         best_hits = 0
         for case in cases:
             tags = [t.lower() for t in case.get("match_tags", [])]
-            hits = sum(1 for t in tags if t in text)
+            hits = sum(1 for t in tags if _contains(text, t) or t in text)
             if hits > best_hits:
                 best_hits = hits
                 best_slug = case.get("slug", "")
-        return best_slug if best_hits >= 2 else (best_slug if best_hits == 1 else "")
+        return best_slug if best_hits >= 1 else ""

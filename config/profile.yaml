@@ -1,51 +1,133 @@
-# Профиль матчинга — экспорт из resume_ru.md + Handler defaults
+# Профиль матчинга OrderHunter — ниши: сайт, бот, автоматизация, интеграция, починить, парсер
 
 developer:
   name: "Порохня Игорь"
   brand: "Handler Studio"
-  role: "Fullstack-разработчик · E-commerce · AI-интеграции"
+  role: "Fullstack-разработчик · сайты · боты · автоматизация · интеграции"
   telegram: "@Gersaven"
   email: "Shurik782@gmail.com"
   github: "https://github.com/shurik782-a11y"
   format: remote
+  can_do: |
+    Сайты и веб-приложения (Next.js, React, PHP/CS-Cart), Telegram-боты и Mini Apps,
+    автоматизация и парсеры, API/интеграции (СДЭК, VK, платежи, webhook),
+    починка prod-багов, e-commerce, AI-фичи. Удалённо, от идеи до деплоя.
 
 pricing:
   landing_min_rub: 30000
   bot_min_rub: 25000
   webapp_min_rub: 80000
-  project_min_rub: 30000
-  hourly_min_rub: null
-  payment: "50% предоплата, 50% по завершению"
+  automation_min_rub: 25000
+  integration_min_rub: 30000
+  fix_min_rub: 15000
+  parse_min_rub: 20000
+  project_min_rub: 20000
+  payment: "50% предоплата, 50% по завершению (или этапы)"
 
-process:
-  response_hours: 2
-  support_days: 30
-  steps:
-    - "Заявка → ответ в течение 2 часов"
-    - "Бриф 20–30 минут"
-    - "Фиксированная оценка и ТЗ"
-    - "Спринты с еженедельными демо"
-    - "Деплой + 30 дней поддержки"
-
-services:
-  - id: web
-    title: "Веб-разработка"
-    keywords: [лендинг, saas, crm, next.js, react, сайт, интернет-магазин]
-  - id: bot
-    title: "Telegram-боты и Mini Apps"
-    keywords: [telegram, бот, mini app, webapp, aiogram, gramjs, telegraf]
-  - id: automation
+# Интенты: что ищем быстро (rules-first, без LLM)
+intents:
+  site:
+    title: "Сайт / веб-проект"
+    price_key: landing_min_rub
+    weight: 25
+    keywords:
+      - сайт
+      - лендинг
+      - landing
+      - интернет-магазин
+      - магазин
+      - витрина
+      - веб-приложение
+      - web app
+      - next.js
+      - react
+      - frontend
+      - верстка сайта
+      - многостраничный
+      - корпоративный сайт
+      - личный кабинет
+      - crm
+      - saas
+  bot:
+    title: "Бот / Mini App"
+    price_key: bot_min_rub
+    weight: 28
+    keywords:
+      - бот
+      - telegram
+      - телеграм
+      - mini app
+      - webapp
+      - aiogram
+      - telegraf
+      - чат-бот
+      - chatbot
+      - бота
+  automation:
     title: "Автоматизация"
-    keywords: [парсер, парсинг, cron, очередь, worker, smm, автопост]
-  - id: backend
-    title: "Backend & API"
-    keywords: [fastapi, api, postgresql, prisma, rest, webhook, микросервис]
-  - id: ecommerce
-    title: "E-commerce"
-    keywords: [cs-cart, маркетплейс, корзина, сдэк, оплата, tochka, cdek]
-  - id: consulting
-    title: "Консультации"
-    keywords: [аудит, code review, архитектура, prod, инцидент]
+    price_key: automation_min_rub
+    weight: 24
+    keywords:
+      - автоматизац
+      - автопост
+      - очередь
+      - worker
+      - cron
+      - скрипт
+      - n8n
+      - zapier
+      - пайплайн
+      - автозагруз
+      - smm
+  integration:
+    title: "Интеграция / API"
+    price_key: integration_min_rub
+    weight: 22
+    keywords:
+      - интеграц
+      - api
+      - webhook
+      - сдэк
+      - cdek
+      - оплата
+      - платеж
+      - vk api
+      - rest
+      - 1с обмен
+      - коннектор
+      - синхронизац
+  fix:
+    title: "Починить / доработать"
+    price_key: fix_min_rub
+    weight: 20
+    keywords:
+      - починить
+      - починка
+      - баг
+      - ошибка
+      - не работает
+      - доработ
+      - исправ
+      - hotfix
+      - срочно починить
+      - сломал
+      - падает
+      - рефактор
+  parse:
+    title: "Парсер / сбор данных"
+    price_key: parse_min_rub
+    weight: 22
+    keywords:
+      - парсер
+      - парсинг
+      - спарсить
+      - scrape
+      - scraping
+      - сбор данных
+      - выгрузка
+      - мониторинг цен
+      - playwright
+      - selenium
 
 skills_positive:
   - python
@@ -53,7 +135,7 @@ skills_positive:
   - typescript
   - next.js
   - react
-  - node.js
+  - node
   - php
   - cs-cart
   - postgresql
@@ -62,63 +144,73 @@ skills_positive:
   - prisma
   - ai
   - llm
-  - deepseek
   - webhook
-  - vk
-  - instagram
-  - сдэк
   - парсер
   - playwright
   - nginx
-  - railway
-  - vercel
+  - express
+  - mini app
 
 skills_negative:
-  - 1с
-  - 1c
+  - 1с программист
+  - только 1с
   - bitrix с нуля
-  - wordpress за
-  - только верстка
-  - только дизайн
-  - seo без
+  - wordpress за 3000
+  - wordpress за 5000
+  - только верстка баннер
+  - только дизайн логотип
+  - seo продвижение без
   - blockchain
   - nft
   - solidity
-  - swift
-  - kotlin native
-  - студент за
+  - swift ios
+  - kotlin android
+  - студент за еду
   - бесплатно за отзыв
-  - копирайтинг
-  - только текст
+  - только копирайтинг
+  - написать статью
+  - монтаж видео
+  - озвучка
+  - рисовать логотип
 
 keywords_boost:
-  telegram: 20
-  бот: 15
-  fastapi: 15
+  сайт: 18
+  лендинг: 16
+  бот: 20
+  telegram: 18
+  телеграм: 18
+  автоматизац: 16
+  интеграц: 14
+  парсер: 16
+  парсинг: 16
+  спарсить: 18
+  починить: 14
+  доработ: 12
+  api: 10
+  fastapi: 12
   next.js: 12
   react: 10
-  e-commerce: 15
-  интернет-магазин: 12
-  cs-cart: 20
-  mini app: 18
-  парсер: 10
-  ai: 10
-  интеграция: 8
+  интернет-магазин: 14
+  cs-cart: 18
+  mini app: 16
+  webhook: 10
+  playwright: 10
 
 thresholds:
-  min_score_rules: 40
-  min_score_notify: 65
-  min_score_llm: 60
-  max_drafts_per_day: 20
-  max_responses_per_day: 8
-  response_delay_seconds_min: 60
-  response_delay_seconds_max: 180
+  # Быстрый отбор: достаточно одного сильного интента
+  min_score_rules: 28
+  min_score_notify: 55
+  min_score_llm: 50
+  max_drafts_per_day: 25
+  max_responses_per_day: 10
+  # Бюджет не указан — не отсекаем; указан ниже floor — отсев
+  reject_if_budget_below_min: true
+  soft_budget: true
 
 tone: business_b2b
-# business_b2b | freelance_casual
 
 offer_snippets:
-  hook: "Прочитал ТЗ — задача понятна."
-  cta: "Могу созвониться сегодня или прислать план на одну страницу."
+  hook: "Понял задачу."
+  cta: "Могу созвониться сегодня или прислать короткий план работ."
   portfolio_url: "https://github.com/shurik782-a11y"
   contact: "@Gersaven"

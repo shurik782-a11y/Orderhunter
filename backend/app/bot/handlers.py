@@ -93,15 +93,37 @@ async def notify_order_card(order: Order, draft_text: str) -> None:
     if monitor.paused:
         return
 
+    brief = {}
+    try:
+        parsed = json.loads(order.match_reasons or "{}")
+        if isinstance(parsed, dict) and (
+            "client_need" in parsed or "reasons" in parsed
+        ):
+            brief = parsed
+    except json.JSONDecodeError:
+        brief = {"reasons_raw": order.match_reasons}
+
+    need = html.escape(str(brief.get("client_need") or order.title)[:350])
+    offer = html.escape(str(brief.get("my_offer") or "—")[:350])
+    price = brief.get("price_rub") or "—"
+    price_note = html.escape(str(brief.get("price_note") or "")[:160])
+    intent = html.escape(str(brief.get("intent_title") or brief.get("intent") or ""))
+    reasons = brief.get("reasons") or []
+    reasons_s = html.escape(", ".join(str(r) for r in reasons[:6]))
+
     bot = Bot(token=settings.bot_token)
-    reasons = order.match_reasons[:500]
     text = (
-        f"<b>Новый заказ</b> · <code>{html.escape(order.source)}</code> · "
-        f"score <b>{order.match_score:.0f}</b>\n"
-        f"<b>{html.escape(order.title[:300])}</b>\n\n"
-        f"{html.escape(order.description[:700])}\n\n"
-        f"<i>{html.escape(reasons)}</i>\n\n"
-        f"<b>Черновик:</b>\n{html.escape(draft_text[:2200])}"
+        f"<b>На подтверждение</b> · <code>{html.escape(order.source)}</code> · "
+        f"score <b>{order.match_score:.0f}</b>"
+        f"{f' · {intent}' if intent else ''}\n\n"
+        f"<b>Заказчик хочет:</b>\n{need}\n\n"
+        f"<b>Могу дать:</b>\n{offer}\n\n"
+        f"<b>Цена для отклика:</b> <b>{price}</b> ₽"
+        f"{f' — {price_note}' if price_note else ''}\n\n"
+        f"<b>{html.escape(order.title[:200])}</b>\n"
+        f"<i>{reasons_s}</i>\n\n"
+        f"<b>Черновик отклика:</b>\n{html.escape(draft_text[:2000])}\n\n"
+        f"Подтвердите кнопками ниже или поправьте текст."
     )
     kb = _order_keyboard(order.id, order.url, order.source)
     for admin_id in settings.admin_id_list:

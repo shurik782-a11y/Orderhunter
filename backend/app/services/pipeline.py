@@ -6,10 +6,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dedup import is_duplicate, order_content_hash
-from app.core.matcher import RulesMatcher, parse_budget_rub
+from app.core.matcher import MatchResult, RulesMatcher, parse_budget_rub
 from app.core.normalizer import NormalizedOrder
 from app.core.profile_loader import get_config_dir, load_profile
-from app.core.responder import DraftGenerator
+from app.core.responder import DraftBundle, DraftGenerator
 from app.db.models import Draft, Order, OrderAction, OrderStatus
 from app.services.analytics import bump_daily
 from app.services.monitor_state import monitor
@@ -36,65 +36,62 @@ class OrderPipeline:
                 f"{order.budget_text} {order.description}"
             )
 
-        score, reasons, case_slug = self.matcher.match(order)
-        min_rules = float(self.profile.thresholds.get("min_score_rules", 40))
+        match = self.matcher.match(order)
+        min_rules = float(self.profile.thresholds.get("min_score_rules", 28))
         await bump_daily(self.session, "seen")
 
-        if score < min_rules:
-            row = await self._save_order(
-                order, score, reasons, case_slug, OrderStatus.IGNORED
+        if match.score < min_rules:
+            return await self._save_order(
+                order, match, OrderStatus.IGNORED, brief=None
             )
-            return row
 
         await bump_daily(self.session, "matched")
 
-        # Pause: keep matching stats, do not draft/notify
         if monitor.paused:
-            row = await self._save_order(
-                order, score, reasons, case_slug, OrderStatus.MATCHED
+            return await self._save_order(
+                order, match, OrderStatus.MATCHED, brief=None
             )
-            return row
 
-        llm_score = score
-        draft_text = ""
-        final_case = case_slug
+        min_notify = float(self.profile.thresholds.get("min_score_notify", 55))
+        min_llm = float(self.profile.thresholds.get("min_score_llm", 50))
 
-        min_notify = float(self.profile.thresholds.get("min_score_notify", 65))
-        min_llm = float(self.profile.thresholds.get("min_score_llm", 60))
-        if score >= min_llm:
+        bundle: DraftBundle | None = None
+        score = match.score
+
+        if match.score >= min_llm:
             try:
-                llm_score, draft_text, final_case = await self.drafter.classify_and_draft(
-                    order, score, reasons, case_slug
-                )
+                bundle = await self.drafter.classify_and_draft(order, match)
+                score = bundle.score
             except Exception:
-                logger.exception("LLM draft failed, using rules only")
-                draft_text = self.drafter._template_draft(order, case_slug)
+                logger.exception("LLM draft failed, using template")
+                bundle = self.drafter._template_bundle(order, match)
+                score = bundle.score
 
-        if llm_score < min_llm:
-            row = await self._save_order(
-                order, llm_score, reasons, final_case, OrderStatus.IGNORED
+        if score < min_llm:
+            return await self._save_order(
+                order, match, OrderStatus.IGNORED, brief=bundle, score=score
             )
-            return row
 
-        # Notify threshold: below notify score — store matched but don't draft-spam
-        if llm_score < min_notify:
-            row = await self._save_order(
-                order, llm_score, reasons, final_case, OrderStatus.MATCHED
+        if score < min_notify:
+            return await self._save_order(
+                order, match, OrderStatus.MATCHED, brief=bundle, score=score
             )
-            return row
 
         if not await self._under_daily_draft_limit():
             logger.info("Daily draft limit reached")
-            row = await self._save_order(
-                order, llm_score, reasons, final_case, OrderStatus.MATCHED
+            return await self._save_order(
+                order, match, OrderStatus.MATCHED, brief=bundle, score=score
             )
-            return row
+
+        if bundle is None:
+            bundle = self.drafter._template_bundle(order, match)
 
         row = await self._save_order(
-            order, llm_score, reasons, final_case, OrderStatus.DRAFTED
+            order, match, OrderStatus.DRAFTED, brief=bundle, score=score
         )
-        if draft_text:
-            self.session.add(Draft(order_id=row.id, text=draft_text, llm_score=llm_score))
+        self.session.add(
+            Draft(order_id=row.id, text=bundle.draft, llm_score=score)
+        )
         await self.session.commit()
         await self.session.refresh(row)
         return row
@@ -102,11 +99,20 @@ class OrderPipeline:
     async def _save_order(
         self,
         order: NormalizedOrder,
-        score: float,
-        reasons: list[str],
-        case_slug: str,
+        match: MatchResult,
         status: OrderStatus,
+        brief: DraftBundle | None,
+        score: float | None = None,
     ) -> Order:
+        meta = {
+            "reasons": match.reasons,
+            "intent": match.intent_id,
+            "intent_title": match.intent_title or (brief.intent_title if brief else ""),
+            "client_need": (brief.client_need if brief else match.client_need),
+            "my_offer": brief.my_offer if brief else "",
+            "price_rub": brief.price_rub if brief else match.price_min_rub,
+            "price_note": brief.price_note if brief else "",
+        }
         row = Order(
             external_id=order.external_id,
             source=order.source,
@@ -116,9 +122,11 @@ class OrderPipeline:
             budget_text=order.budget_text,
             budget_min_rub=order.budget_min_rub,
             content_hash=order_content_hash(order),
-            match_score=score,
-            match_reasons=json.dumps(reasons, ensure_ascii=False),
-            suggested_case_slug=case_slug,
+            match_score=score if score is not None else match.score,
+            match_reasons=json.dumps(meta, ensure_ascii=False),
+            suggested_case_slug=(
+                brief.case_slug if brief and brief.case_slug else match.case_slug
+            ),
             status=status,
             posted_at=order.posted_at,
             raw_json=json.dumps(order.raw or {}, ensure_ascii=False),
@@ -129,7 +137,7 @@ class OrderPipeline:
         return row
 
     async def _under_daily_draft_limit(self) -> bool:
-        max_drafts = int(self.profile.thresholds.get("max_drafts_per_day", 5))
+        max_drafts = int(self.profile.thresholds.get("max_drafts_per_day", 25))
         day_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         count = await self.session.scalar(
             select(func.count(Order.id)).where(
