@@ -68,26 +68,40 @@ function tokenToTgUrl(token) {
   return `tg://login?token=${b64}`;
 }
 
-async function printLoginLink(url) {
+/** Opens in browser → Telegram Web (must already be logged in there). */
+function tokenToWebUrl(token) {
+  const tg = tokenToTgUrl(token);
+  return `https://web.telegram.org/k/#?tgaddr=${encodeURIComponent(tg)}`;
+}
+
+async function printLoginLink(token) {
+  const webUrl = tokenToWebUrl(token);
+  const tgUrl = tokenToTgUrl(token);
+
   console.log("\n========================================");
-  console.log("Откройте эту ссылку на ПК (Telegram Desktop):");
+  console.log("1) Откройте Telegram Web и войдите в аккаунт (если ещё нет):");
+  console.log("   https://web.telegram.org/k/");
+  console.log("2) Затем откройте ссылку подтверждения:");
   console.log("========================================\n");
-  console.log(url);
-  console.log("\n========================================");
-  console.log("Скопируйте строку выше, если не открылось само.\n");
+  console.log(webUrl);
+  console.log("\n========================================\n");
 
   try {
     const { exec } = await import("child_process");
     const cmd =
       process.platform === "win32"
-        ? `start "" "${url}"`
+        ? `start "" "${webUrl}"`
         : process.platform === "darwin"
-          ? `open '${url}'`
-          : `xdg-open '${url}'`;
+          ? `open "${webUrl}"`
+          : `xdg-open "${webUrl}"`;
     exec(cmd);
   } catch {
     /* ignore */
   }
+
+  // fallback for Desktop if Web не сработал
+  console.log("(запасной вариант для Telegram Desktop):");
+  console.log(tgUrl + "\n");
 }
 
 function buildClient(mode) {
@@ -124,14 +138,14 @@ async function connectWithFallback(modes) {
 }
 
 async function loginQr(client, prompter) {
-  console.log("\n=== Вход по ссылке tg:// (без SMS) ===");
+  console.log("\n=== Вход через Telegram Web (без SMS) ===");
+  console.log("Нужен уже открытый аккаунт в https://web.telegram.org/k/\n");
   await client.signInUserWithQrCode(
     { apiId, apiHash },
     {
       qrCode: async ({ token }) => {
-        const url = tokenToTgUrl(token);
-        await printLoginLink(url);
-        console.log("Жду подтверждение в Telegram Desktop… (ссылка обновляется ~раз в 30с)");
+        await printLoginLink(token);
+        console.log("Жду подтверждение в Web… (ссылка обновляется ~раз в 30с)");
       },
       password: async (hint) =>
         await prompter.ask(`2FA пароль${hint ? ` (подсказка: ${hint})` : ""}: `),
@@ -211,7 +225,7 @@ const prompter = createPrompter();
 try {
   const method =
     (await prompter.ask(
-      "Вход: [1] ссылка tg:// (без SMS, для ПК)  [2] номер телефона\nВыбор (1/2): ",
+      "Вход: [1] ссылка web.telegram.org (без SMS)  [2] номер телефона\nВыбор (1/2): ",
     )) || "1";
 
   const client = await connectWithFallback(modes);
