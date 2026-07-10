@@ -109,8 +109,8 @@ thresholds:
   min_score_rules: 40
   min_score_notify: 65
   min_score_llm: 60
-  max_drafts_per_day: 5
-  max_responses_per_day: 5
+  max_drafts_per_day: 20
+  max_responses_per_day: 8
   response_delay_seconds_min: 60
   response_delay_seconds_max: 180
 

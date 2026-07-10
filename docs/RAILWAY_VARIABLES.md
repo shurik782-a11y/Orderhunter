@@ -9,17 +9,22 @@ ADMIN_TELEGRAM_IDS=
 INTERNAL_API_SECRET=
 CONFIG_DIR=/app/config
 LLM_ENABLED=true
-LLM_API_KEY=
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
+LLM_API_KEY=sk-or-v1-ВАШ_КЛЮЧ
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=deepseek/deepseek-chat
 WORKER_ENABLED=true
 FL_RU_ENABLED=false
 KWORK_ENABLED=false
 HANDLER_LEADS_ENABLED=false
 ```
 
+**OpenRouter:** ключ `sk-or-...` + `LLM_BASE_URL=https://openrouter.ai/api/v1` + модель вида `deepseek/deepseek-chat`.  
+Если оставить `api.deepseek.com` с ключом OpenRouter — будет **401**.
+
 Bool-переменные: только `true` / `false`, либо удалите Variable.  
 Пустая строка (`FL_RU_ENABLED=`) раньше роняла API — в коде это уже обработано.
+
+**Conflict getUpdates:** у `orderhunter-api` должна быть **1 replica**. Не запускайте бота локально с тем же `BOT_TOKEN`.
 
 ## Сервис 2: `orderhunter-mtproto` (регион US)
 

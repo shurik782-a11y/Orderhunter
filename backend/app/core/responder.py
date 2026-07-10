@@ -1,12 +1,48 @@
 import json
+import logging
 from pathlib import Path
 
 import yaml
-from openai import AsyncOpenAI
+from openai import APIStatusError, AsyncOpenAI, AuthenticationError
 
 from app.config import get_settings
 from app.core.dedup import load_portfolio
 from app.core.normalizer import NormalizedOrder
+
+logger = logging.getLogger(__name__)
+
+# After 401, skip further LLM calls in this process (use templates).
+_llm_disabled_reason: str | None = None
+
+
+def _resolve_llm_client(settings) -> tuple[AsyncOpenAI, str]:
+    """Support DeepSeek and OpenRouter from the same settings."""
+    api_key = (settings.llm_api_key or "").strip()
+    base_url = (settings.llm_base_url or "").strip().rstrip("/")
+    model = (settings.llm_model or "").strip()
+
+    # OpenRouter keys start with sk-or-
+    if api_key.startswith("sk-or-") or "openrouter.ai" in base_url:
+        if "openrouter.ai" not in base_url:
+            base_url = "https://openrouter.ai/api/v1"
+        if not model or model == "deepseek-chat":
+            model = "deepseek/deepseek-chat"
+        client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            default_headers={
+                "HTTP-Referer": "https://github.com/shurik782-a11y/Orderhunter",
+                "X-Title": "OrderHunter",
+            },
+        )
+        return client, model
+
+    # DeepSeek / generic OpenAI-compatible
+    if not base_url:
+        base_url = "https://api.deepseek.com"
+    if not model:
+        model = "deepseek-chat"
+    return AsyncOpenAI(api_key=api_key, base_url=base_url), model
 
 
 class DraftGenerator:
@@ -24,14 +60,17 @@ class DraftGenerator:
         rules_reasons: list[str],
         case_slug: str,
     ) -> tuple[float, str, str]:
-        if not self.settings.llm_enabled or not self.settings.llm_api_key:
+        global _llm_disabled_reason
+
+        if (
+            not self.settings.llm_enabled
+            or not self.settings.llm_api_key
+            or _llm_disabled_reason
+        ):
             text = self._template_draft(order, case_slug)
             return rules_score, text, case_slug
 
-        client = AsyncOpenAI(
-            api_key=self.settings.llm_api_key,
-            base_url=self.settings.llm_base_url,
-        )
+        client, model = _resolve_llm_client(self.settings)
         portfolio = load_portfolio(self.config_dir)
         case = next((c for c in portfolio if c["slug"] == case_slug), None)
         pricing = self.profile.get("pricing", {})
@@ -68,15 +107,29 @@ class DraftGenerator:
             ensure_ascii=False,
         )
 
-        resp = await client.chat.completions.create(
-            model=self.settings.llm_model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            temperature=0.4,
-            response_format={"type": "json_object"},
-        )
+        try:
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0.4,
+                response_format={"type": "json_object"},
+            )
+        except AuthenticationError as e:
+            _llm_disabled_reason = str(e)
+            logger.error(
+                "LLM auth failed (check LLM_BASE_URL + LLM_API_KEY for OpenRouter). "
+                "Falling back to templates for this process. model=%s base=%s",
+                model,
+                self.settings.llm_base_url,
+            )
+            return rules_score, self._template_draft(order, case_slug), case_slug
+        except APIStatusError as e:
+            logger.warning("LLM API error %s: %s — using template", e.status_code, e.message)
+            return rules_score, self._template_draft(order, case_slug), case_slug
+
         raw = resp.choices[0].message.content or "{}"
         data = json.loads(raw)
         score = float(data.get("score", rules_score))
@@ -95,7 +148,8 @@ class DraftGenerator:
         case_line = ""
         if case:
             case_line = (
-                f"Похожее делал в проекте {case['title']}: {case['results'][0] if case.get('results') else case['subtitle']}."
+                f"Похожее делал в проекте {case['title']}: "
+                f"{case['results'][0] if case.get('results') else case['subtitle']}."
             )
         return f"""Здравствуйте!
 

@@ -3,6 +3,7 @@ import { ENV } from "./env.js";
 import { getFullClient } from "./telegramClient.js";
 
 const seen = new Set<string>();
+const baselined = new Set<string>();
 
 function messageKey(channel: string, id: number): string {
   return `${channel}:${id}`;
@@ -18,6 +19,7 @@ export async function pollChannelsOnce(): Promise<void> {
   const client = await getFullClient();
   for (const ch of channels) {
     const username = ch.username.replace(/^@/, "");
+    const isBaseline = !baselined.has(username);
     try {
       const entity = await client.getEntity(username);
       for await (const msg of client.iterMessages(entity, { limit: 15 })) {
@@ -25,6 +27,7 @@ export async function pollChannelsOnce(): Promise<void> {
         const key = messageKey(username, msg.id);
         if (seen.has(key)) continue;
         seen.add(key);
+        if (isBaseline) continue;
         const text = msg.message || "";
         if (text.length < 40) continue;
         const url = `https://t.me/${username}/${msg.id}`;
@@ -36,6 +39,10 @@ export async function pollChannelsOnce(): Promise<void> {
           contact_hint: extractContactHint(text),
         });
         console.log(`[orderhunter] ingested ${username}/${msg.id}`);
+      }
+      if (isBaseline) {
+        baselined.add(username);
+        console.log(`[orderhunter] baseline done for @${username} (old posts skipped)`);
       }
     } catch (e) {
       console.error(`[orderhunter] channel ${username} failed`, e);
@@ -81,10 +88,11 @@ export async function startRealtimeListener(): Promise<void> {
 }
 
 export async function runMonitor(): Promise<void> {
+  // Baseline first so realtime doesn't double-send historical backlog.
+  await pollChannelsOnce();
   await startRealtimeListener();
   const interval = ENV.POLL_INTERVAL_SECONDS * 1000;
   setInterval(() => {
     pollChannelsOnce().catch((e) => console.error("[orderhunter] poll error", e));
   }, interval);
-  await pollChannelsOnce();
 }

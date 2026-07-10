@@ -49,7 +49,8 @@ class OrderPipeline:
         final_case = case_slug
 
         min_notify = float(self.profile.thresholds.get("min_score_notify", 65))
-        if score >= min_notify or self.profile.thresholds.get("min_score_llm", 60):
+        min_llm = float(self.profile.thresholds.get("min_score_llm", 60))
+        if score >= min_llm:
             try:
                 llm_score, draft_text, final_case = await self.drafter.classify_and_draft(
                     order, score, reasons, case_slug
@@ -58,15 +59,25 @@ class OrderPipeline:
                 logger.exception("LLM draft failed, using rules only")
                 draft_text = self.drafter._template_draft(order, case_slug)
 
-        if llm_score < float(self.profile.thresholds.get("min_score_llm", 60)):
+        if llm_score < min_llm:
             row = await self._save_order(
                 order, llm_score, reasons, final_case, OrderStatus.IGNORED
             )
             return row
 
+        # Notify threshold: below notify score — store matched but don't draft-spam
+        if llm_score < min_notify:
+            row = await self._save_order(
+                order, llm_score, reasons, final_case, OrderStatus.MATCHED
+            )
+            return row
+
         if not await self._under_daily_draft_limit():
             logger.info("Daily draft limit reached")
-            return None
+            row = await self._save_order(
+                order, llm_score, reasons, final_case, OrderStatus.MATCHED
+            )
+            return row
 
         row = await self._save_order(
             order, llm_score, reasons, final_case, OrderStatus.DRAFTED
