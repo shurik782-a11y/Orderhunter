@@ -7,6 +7,9 @@ const baselined = new Set<string>();
 const invalidUsernames = new Set<string>();
 
 type TgClient = Awaited<ReturnType<typeof getFullClient>>;
+// GramJS entity — keep loose to avoid fragile type imports across versions.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EntityLike = any;
 
 let sharedClient: TgClient | null = null;
 
@@ -29,7 +32,7 @@ function entityUsername(entity: unknown): string {
 async function resolveChannel(
   c: TgClient,
   username: string,
-): Promise<{ username: string; entity: unknown } | null> {
+): Promise<{ username: string; entity: EntityLike } | null> {
   const clean = username.replace(/^@/, "").toLowerCase();
   if (invalidUsernames.has(clean)) return null;
   try {
@@ -88,7 +91,7 @@ export async function startRealtimeListener(): Promise<void> {
   const channels = loadChannels();
   const c = await client();
 
-  const entities: unknown[] = [];
+  const entities: EntityLike[] = [];
   const allowed = new Set<string>();
 
   for (const ch of channels) {
@@ -105,7 +108,6 @@ export async function startRealtimeListener(): Promise<void> {
 
   const { NewMessage } = await import("telegram/events/NewMessage.js");
 
-  // Pass resolved entities only — never invalid usernames (USERNAME_INVALID crash).
   c.addEventHandler(async (event) => {
     try {
       const msg = event.message;
@@ -129,7 +131,7 @@ export async function startRealtimeListener(): Promise<void> {
     } catch (e) {
       console.error("[orderhunter] realtime handler error", e);
     }
-  }, new NewMessage({ incoming: true, chats: entities as object[] }));
+  }, new NewMessage({ incoming: true, chats: entities }));
 
   console.log(`[orderhunter] realtime on: ${[...allowed].join(", ")}`);
 }
