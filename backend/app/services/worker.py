@@ -5,7 +5,9 @@ from app.config import get_settings
 from app.connectors.fl_ru import FlRuConnector
 from app.connectors.freelance_ru import FreelanceRuConnector
 from app.connectors.freelancehunt import FreelancehuntConnector
+from app.connectors.hablance import HablanceConnector
 from app.connectors.kwork import KworkConnector
+from app.connectors.weblancer import WeblancerConnector
 from app.connectors.workspace_ru import WorkspaceRuConnector
 from app.db.session import async_session
 from app.services.pipeline import OrderPipeline
@@ -43,6 +45,16 @@ async def run_worker_loop() -> None:
             WorkspaceRuConnector(),
             "workspace_ru_enabled",
             "workspace_ru_poll_interval_seconds",
+        ),
+        (
+            WeblancerConnector(),
+            "weblancer_enabled",
+            "weblancer_poll_interval_seconds",
+        ),
+        (
+            HablanceConnector(),
+            "hablance_enabled",
+            "hablance_poll_interval_seconds",
         ),
     ]
     # Start at interval so first eligible poll runs on first tick.

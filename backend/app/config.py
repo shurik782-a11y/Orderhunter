@@ -76,6 +76,16 @@ class Settings(BaseSettings):
     workspace_ru_poll_interval_seconds: int = 300
     workspace_ru_projects_url: str = "https://workspace.ru/tenders/web-development/"
 
+    weblancer_enabled: bool = False
+    weblancer_poll_interval_seconds: int = 300
+    weblancer_projects_url: str = (
+        "https://www.weblancer.net/freelance/veb-programmirovanie-31/"
+    )
+
+    hablance_enabled: bool = False
+    hablance_poll_interval_seconds: int = 300
+    hablance_tasks_url: str = "https://hablance.ru/tasks/"
+
     handler_leads_enabled: bool = False
     handler_leads_url: str = "http://localhost:3000/api/leads"
 
@@ -90,6 +100,8 @@ class Settings(BaseSettings):
         "freelance_ru_enabled",
         "freelancehunt_enabled",
         "workspace_ru_enabled",
+        "weblancer_enabled",
+        "hablance_enabled",
         "handler_leads_enabled",
         "worker_enabled",
         mode="before",
@@ -104,6 +116,8 @@ class Settings(BaseSettings):
         "freelance_ru_poll_interval_seconds",
         "freelancehunt_poll_interval_seconds",
         "workspace_ru_poll_interval_seconds",
+        "weblancer_poll_interval_seconds",
+        "hablance_poll_interval_seconds",
         "port",
         mode="before",
     )

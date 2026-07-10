@@ -124,3 +124,39 @@ def normalize_workspace_tender(
         budget_text=budget_text,
         raw={"tender_id": tender_id},
     )
+
+
+def normalize_weblancer_project(
+    project_id: str,
+    title: str,
+    description: str,
+    url: str,
+    budget_text: str = "",
+) -> NormalizedOrder:
+    return NormalizedOrder(
+        external_id=f"weblancer:{project_id}",
+        source="weblancer",
+        title=title,
+        description=description,
+        url=url,
+        budget_text=budget_text,
+        raw={"project_id": project_id},
+    )
+
+
+def normalize_hablance_task(
+    task_id: str,
+    title: str,
+    description: str,
+    url: str,
+    budget_text: str = "",
+) -> NormalizedOrder:
+    return NormalizedOrder(
+        external_id=f"hablance:{task_id}",
+        source="hablance",
+        title=title,
+        description=description,
+        url=url,
+        budget_text=budget_text,
+        raw={"task_id": task_id},
+    )

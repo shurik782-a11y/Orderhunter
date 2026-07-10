@@ -341,6 +341,10 @@ def _sources_text() -> str:
             f"(каждые {s.freelancehunt_poll_interval_seconds}с)",
             f"{'🟢' if s.workspace_ru_enabled else '⚪'} Workspace.ru "
             f"(каждые {s.workspace_ru_poll_interval_seconds}с)",
+            f"{'🟢' if s.weblancer_enabled else '⚪'} Weblancer "
+            f"(каждые {s.weblancer_poll_interval_seconds}с)",
+            f"{'🟢' if s.hablance_enabled else '⚪'} HabLance "
+            f"(каждые {s.hablance_poll_interval_seconds}с)",
             "",
             f"LLM: {'🟢' if s.llm_enabled else '⚪'} {html.escape(s.llm_model)}",
             f"Worker API: {'🟢' if s.worker_enabled else '⚪'}",

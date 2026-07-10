@@ -112,6 +112,82 @@ channels:
     enabled: true
     categories: [freelance]
 
+  # --- новые площадки/чаты (проверены t.me, 2026-07) ---
+  - username: it_zakazy
+    title: Заказы программирование / IT
+    enabled: true
+    categories: [dev, orders]
+
+  - username: freelancetaverna
+    title: Фриланс Таверна
+    enabled: true
+    categories: [freelance, remote]
+
+  - username: freelanceGeeks
+    title: freelanceGeeks
+    enabled: true
+    categories: [freelance, dev]
+
+  - username: frilans_chat
+    title: Фриланс чат
+    enabled: true
+    categories: [freelance, chat]
+
+  - username: javascript_jobs
+    title: JavaScript Jobs (чат)
+    enabled: true
+    categories: [js, web]
+
+  - username: nodejs_jobs
+    title: Node.js Jobs
+    enabled: true
+    categories: [js, web]
+
+  - username: fordev
+    title: Backend/Frontend вакансии+проекты
+    enabled: true
+    categories: [dev, web]
+
+  - username: workayte
+    title: Работа в ИТ / фриланс
+    enabled: true
+    categories: [dev, freelance]
+
+  - username: job_python
+    title: Python Job
+    enabled: true
+    categories: [python]
+
+  - username: jc_it
+    title: Jobs Code IT
+    enabled: true
+    categories: [dev]
+
+  - username: nextjs_jobs
+    title: Next.js jobs
+    enabled: true
+    categories: [web]
+
+  - username: n8n_ru
+    title: n8n russian (автоматизация)
+    enabled: true
+    categories: [automation]
+
+  - username: backend_vacancy
+    title: Backend Jobs
+    enabled: true
+    categories: [backend]
+
+  - username: frontend_vacancy
+    title: Frontend Jobs
+    enabled: true
+    categories: [frontend, web]
+
+  - username: kwork_orders
+    title: Kwork заказы (мало подписчиков)
+    enabled: true
+    categories: [kwork, aggregator]
+
   # --- выключены: USERNAME_INVALID / не существуют / шум ---
   - username: freelance_ru
     title: (invalid as TG channel)

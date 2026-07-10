@@ -18,6 +18,8 @@ KWORK_ENABLED=false
 FREELANCE_RU_ENABLED=false
 FREELANCEHUNT_ENABLED=false
 WORKSPACE_RU_ENABLED=false
+WEBLANCER_ENABLED=false
+HABLANCE_ENABLED=false
 HANDLER_LEADS_ENABLED=false
 ```
 
@@ -36,6 +38,10 @@ FREELANCEHUNT_ENABLED=true
 FREELANCEHUNT_PROJECTS_URL=https://freelancehunt.com/projects/skill/veb-programmirovanie/99.html
 WORKSPACE_RU_ENABLED=true
 WORKSPACE_RU_PROJECTS_URL=https://workspace.ru/tenders/web-development/
+WEBLANCER_ENABLED=true
+WEBLANCER_PROJECTS_URL=https://www.weblancer.net/freelance/veb-programmirovanie-31/
+HABLANCE_ENABLED=true
+HABLANCE_TASKS_URL=https://hablance.ru/tasks/
 ```
 
 **Очередь карточек:** в чат уходит **одна** активная; остальные ждут в «Очередь».  
@@ -85,8 +91,9 @@ POLL_INTERVAL_SECONDS=90
 ```
 
 **Подпишитесь session-аккаунтом** на каналы из `config/telegram-channels.yaml` с `enabled: true`, в т.ч.:
-`progjob`, `freelance_vakansiii`, `IT_Outstaff_projects`, `forwebdev`, `js_jobs`, `frontend_jobs`, `backend_jobs`, `devschat`
-(+ уже рабочие: `freelance_orders`, `frwork3`, `allw0rk`, …).
+`it_zakazy`, `freelancetaverna`, `freelanceGeeks`, `frilans_chat`, `javascript_jobs`, `nodejs_jobs`,
+`fordev`, `workayte`, `job_python`, `jc_it`, `nextjs_jobs`, `n8n_ru`, `backend_vacancy`, `frontend_vacancy`
+(+ уже рабочие: `freelance_orders`, `frwork3`, `allw0rk`, `progjob`, …).
 Невалидные username в логах будут `skip`, без crash.
 
 Как получить:

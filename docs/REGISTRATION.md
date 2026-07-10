@@ -39,11 +39,23 @@ npm run telegram:login
 # скопируйте TELEGRAM_USER_SESSION в .env
 ```
 
-## 4. Freelancehunt (неделя 3)
+## 4. Freelancehunt
 
 https://freelancehunt.com/ — профиль + портфолио, категория Python / Web.
 
-## 5. hh.ru (опционально, неделя 4)
+## 5. Weblancer
+
+1. https://www.weblancer.net/ — регистрация исполнителя
+2. Категория веб-программирования: https://www.weblancer.net/freelance/veb-programmirovanie-31/
+3. В Railway: `WEBLANCER_ENABLED=true` (Assist: открыть URL + вставить черновик)
+
+## 6. HabLance (наследник Хабр Фриланс)
+
+1. https://hablance.ru/ — профиль
+2. Лента заказов: https://hablance.ru/tasks/
+3. В Railway: `HABLANCE_ENABLED=true`
+
+## 7. hh.ru (опционально)
 
 1. Резюме fullstack на hh.ru
 2. Приложение на https://dev.hh.ru/ для OAuth (если подключаете коннектор hh)
@@ -52,6 +64,7 @@ https://freelancehunt.com/ — профиль + портфолио, катего
 
 - [ ] FL.ru профиль заполнен, есть портфолио
 - [ ] Kwork: минимум 3 кворка, биржа подключена
-- [ ] Подписка на 10+ TG-каналов из конфига
+- [ ] Weblancer / HabLance (по желанию) + флаги в Railway
+- [ ] Подписка на 10+ TG-каналов из конфига (в т.ч. новые: `it_zakazy`, `freelancetaverna`, `javascript_jobs`…)
 - [ ] `TELEGRAM_USER_SESSION` создан
 - [ ] `.env` backend и mtproto-worker заполнены
