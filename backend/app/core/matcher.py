@@ -15,6 +15,9 @@ _BUDGET_PATTERNS = [
     re.compile(r"(\d[\d\s]*)\s*(?:₽|руб|р\.?)", re.I),
     re.compile(r"(\d[\d\s]*)\s*(?:uah|грн|₴)", re.I),
     re.compile(r"\$(\d[\d\s]*)", re.I),
+    # Kwork priceLimit often comes as bare "24000" or "1600-24000"
+    re.compile(r"^\s*(\d[\d\s]*)\s*[-–]\s*(\d[\d\s]*)\s*$"),
+    re.compile(r"^\s*(\d[\d\s]{2,})\s*$"),
 ]
 
 
@@ -23,25 +26,62 @@ def content_hash(title: str, description: str) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()[:32]
 
 
-def parse_budget_rub(text: str) -> int | None:
+def _to_int(raw: str) -> int | None:
+    try:
+        return int(raw.replace(" ", "").replace("\u00a0", ""))
+    except ValueError:
+        return None
+
+
+def _scale_currency(value: int, matched: str) -> int:
+    low = matched.lower()
+    if "$" in low or "usd" in low:
+        return int(value * 90)
+    if "uah" in low or "грн" in low or "₴" in low:
+        return int(value * 2.2)
+    return value
+
+
+def parse_budget_bounds(text: str) -> tuple[int | None, int | None]:
+    """
+    Return (min_rub, max_rub) when possible.
+    For a single number (Kwork priceLimit) → (None, value) as client ceiling.
+    """
+    if not text:
+        return None, None
     for pat in _BUDGET_PATTERNS:
-        m = pat.search(text)
+        m = pat.search(text.strip())
         if not m:
             continue
-        raw = m.group(1).replace(" ", "").replace("\u00a0", "")
-        try:
-            value = int(raw)
-        except ValueError:
+        groups = [g for g in m.groups() if g is not None]
+        if not groups:
             continue
-        matched = m.group(0).lower()
-        if "$" in matched or "usd" in matched:
-            value = int(value * 90)
-        elif "uah" in matched or "грн" in matched or "₴" in matched:
-            value = int(value * 2.2)  # rough UAH→RUB for filter only
-        if value < 500:  # ignore noise like "1 руб"
+        nums = [_to_int(g) for g in groups]
+        nums = [n for n in nums if n is not None]
+        if not nums:
             continue
-        return value
-    return None
+        matched = m.group(0)
+        nums = [_scale_currency(n, matched) for n in nums]
+        nums = [n for n in nums if n >= 500]
+        if not nums:
+            continue
+        if len(nums) >= 2:
+            return min(nums[0], nums[1]), max(nums[0], nums[1])
+        # Single number: treat as ceiling (priceLimit) unless "от N"
+        if matched.lower().strip().startswith("от"):
+            return nums[0], None
+        if matched.lower().strip().startswith("до"):
+            return None, nums[0]
+        return None, nums[0]
+    return None, None
+
+
+def parse_budget_rub(text: str) -> int | None:
+    """Best single figure for filters: prefer max (client ceiling) when known."""
+    lo, hi = parse_budget_bounds(text)
+    if hi is not None:
+        return hi
+    return lo
 
 
 @dataclass
@@ -53,6 +93,7 @@ class MatchResult:
     intent_title: str
     price_min_rub: int
     client_need: str
+    budget_max_rub: int | None = None
 
 
 class ProfileData:
@@ -83,6 +124,9 @@ class ProfileData:
     def negative_terms(self) -> list[str]:
         return [t.lower() for t in self.data.get("skills_negative", [])]
 
+    def junk_signals(self) -> list[str]:
+        return [t.lower() for t in self.data.get("junk_signals", [])]
+
     def positive_terms(self) -> list[str]:
         return [t.lower() for t in self.data.get("skills_positive", [])]
 
@@ -105,8 +149,26 @@ def _contains(text: str, needle: str) -> bool:
     return needle in text
 
 
+_STRONG_IT = (
+    "сайт",
+    "лендинг",
+    "бот",
+    "парсер",
+    "api",
+    "интеграц",
+    "next.js",
+    "react",
+    "fastapi",
+    "верстк",
+    "mini app",
+    "webhook",
+    "починить",
+    "доработ",
+)
+
+
 class RulesMatcher:
-    """Fast rules-first matcher: intents → boosts → case → budget gate."""
+    """Fast rules-first matcher: intents → boosts → junk → budget gate."""
 
     def __init__(self, profile: ProfileData):
         self.profile = profile
@@ -121,6 +183,24 @@ class RulesMatcher:
                 return MatchResult(
                     0.0, [f"стоп: {term}"], "", "", "", 0, order.title[:160]
                 )
+
+        junk_hits = [
+            s for s in self.profile.junk_signals() if _contains(text, s) or s in text
+        ]
+        strong_it = any(_contains(text, t) or t in text for t in _STRONG_IT)
+        if len(junk_hits) >= 2 and not strong_it:
+            return MatchResult(
+                0.0,
+                [f"бред: {', '.join(junk_hits[:3])}"],
+                "",
+                "",
+                "",
+                0,
+                order.title[:160],
+            )
+        if junk_hits and not strong_it:
+            score -= 25
+            reasons.append(f"шум:{junk_hits[0]}")
 
         intent_id, intent_title, intent_score, intent_hits = self._best_intent(text)
         if intent_id:
@@ -148,10 +228,22 @@ class RulesMatcher:
             score += 12
             reasons.append(f"кейс:{case_slug}")
 
+        # TG job spam: without clear intent — drop hard
+        if order.source == "telegram" and not intent_id:
+            return MatchResult(
+                min(max(score, 0.0), 20.0),
+                reasons + ["tg без интента"],
+                case_slug,
+                "",
+                "",
+                self.profile.min_project_rub,
+                self._client_need(order, intent_title),
+            )
+
         # Must have at least one intent OR strong tech signal
         if not intent_id and score < 35:
             return MatchResult(
-                min(score, 25.0),
+                min(max(score, 0.0), 25.0),
                 reasons + ["слабо релевантно"],
                 case_slug,
                 "",
@@ -166,13 +258,17 @@ class RulesMatcher:
             else self.profile.min_project_rub
         )
 
-        budget = order.budget_min_rub or parse_budget_rub(
-            f"{order.budget_text} {order.description} {order.title}"
+        budget_lo, budget_hi = parse_budget_bounds(
+            f"{order.budget_text} {order.description} {order.title}".strip()
         )
+        if order.budget_min_rub is not None and budget_hi is None:
+            budget_hi = order.budget_min_rub
+        budget = budget_hi or budget_lo or order.budget_min_rub
+
         thr = self.profile.thresholds
         if budget is not None and budget < price_min:
-            # Soft by default: penalize, rarely hard-reject (only if explicitly enabled)
-            if thr.get("reject_if_budget_below_min") and budget < int(price_min * 0.5):
+            # Явно мизерный потолок — отсев; чуть ниже floor — штраф, цена потом clamp
+            if thr.get("reject_if_budget_below_min") and budget < int(price_min * 0.45):
                 return MatchResult(
                     0.0,
                     [f"бюджет {budget} << {price_min}"],
@@ -181,18 +277,24 @@ class RulesMatcher:
                     intent_title,
                     price_min,
                     self._client_need(order, intent_title),
+                    budget_max_rub=budget_hi,
                 )
-            score *= 0.75 if budget < int(price_min * 0.7) else 0.9
-            reasons.append(f"бюджет {budget} ниже {price_min}")
+            if budget < int(price_min * 0.7):
+                score *= 0.7
+                reasons.append(f"потолок {budget} ниже floor {price_min}")
+            else:
+                score *= 0.92
+                reasons.append(f"потолок {budget}, цена будет clamp")
 
         return MatchResult(
-            min(score, 100.0),
+            min(max(score, 0.0), 100.0),
             reasons,
             case_slug,
             intent_id,
             intent_title,
             price_min,
             self._client_need(order, intent_title),
+            budget_max_rub=budget_hi,
         )
 
     def _best_intent(self, text: str) -> tuple[str, str, float, list[str]]:

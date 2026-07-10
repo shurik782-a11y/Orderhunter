@@ -113,6 +113,8 @@ class KworkConnector(BaseConnector):
         *,
         days: int = 7,
         kwork_name: str = "",
+        max_price: int | None = None,
+        min_price: int | None = None,
     ) -> dict:
         """
         Exchange offer via web flow (mobile /offer is incomplete).
@@ -133,6 +135,12 @@ class KworkConnector(BaseConnector):
 
         name = (kwork_name or "Разработка / доработка под задачу").strip()[:80]
         price = max(int(price or 1000), 500)
+        if min_price is not None:
+            price = max(price, int(min_price))
+        if max_price is not None and int(max_price) > 0:
+            price = min(price, int(max_price))
+        if price < 500:
+            raise RuntimeError(f"Kwork цена вне диапазона после clamp: {price}")
         days = max(int(days or 7), 1)
 
         token = await self._get_token()

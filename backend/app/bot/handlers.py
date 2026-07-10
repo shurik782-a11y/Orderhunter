@@ -634,7 +634,31 @@ async def cb_kwork(query: CallbackQuery) -> None:
         if not project_id:
             await query.answer("Нет project_id")
             return
-        price = order.budget_min_rub or 30000
+        brief = {}
+        try:
+            parsed = json.loads(order.match_reasons or "{}")
+            if isinstance(parsed, dict):
+                brief = parsed
+        except json.JSONDecodeError:
+            brief = {}
+
+        from app.core.matcher import parse_budget_bounds
+
+        price = int(brief.get("price_rub") or order.budget_min_rub or 30000)
+        lo, hi = parse_budget_bounds(order.budget_text or "")
+        if hi is None and order.budget_min_rub:
+            hi = int(order.budget_min_rub)
+        if brief.get("budget_max_rub"):
+            try:
+                hi = int(brief["budget_max_rub"])
+            except (TypeError, ValueError):
+                pass
+        if hi:
+            price = min(price, hi)
+        if lo:
+            price = max(price, lo)
+        price = max(price, 500)
+
         # Kwork exchange: min duration days; name shown on offer card
         days = 7
         kwork_name = (order.title or "Разработка под задачу")[:80]
@@ -646,6 +670,8 @@ async def cb_kwork(query: CallbackQuery) -> None:
                 int(price),
                 days=days,
                 kwork_name=kwork_name,
+                max_price=hi,
+                min_price=lo,
             )
             order.status = OrderStatus.SENT
             pipeline = OrderPipeline(session)

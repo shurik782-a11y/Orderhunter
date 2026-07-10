@@ -63,19 +63,21 @@ class OrderPipeline:
                 bundle = self.drafter._template_bundle(order, match)
                 score = bundle.score
 
-        # LLM не должен «убивать» сильный rules-матч (fit=false → score≤45)
-        if rules_score >= min_notify and score < min_notify:
+        honor_reject = bool(self.profile.thresholds.get("honor_llm_reject", True))
+        if bundle is not None and not bundle.fit and honor_reject:
             logger.info(
-                "LLM score %.0f < notify, keeping rules %.0f for %s",
-                score,
-                rules_score,
+                "LLM reject fit=false for %s flags=%s",
                 order.title[:80],
+                bundle.risk_flags,
             )
+            return await self._save_order(
+                order, match, OrderStatus.IGNORED, brief=bundle, score=min(score, 40.0)
+            )
+
+        # Если LLM занизил score без fit=false — не поднимаем rules до notify
+        # (качество важнее потока). Template-only путь сохраняет rules_score.
+        if bundle is None and rules_score >= min_notify and score < min_notify:
             score = rules_score
-            if bundle is None:
-                bundle = self.drafter._template_bundle(order, match)
-            else:
-                bundle.score = rules_score
 
         if score < min_llm and rules_score < min_llm:
             return await self._save_order(
@@ -128,6 +130,9 @@ class OrderPipeline:
             "price_rub": brief.price_rub if brief else match.price_min_rub,
             "price_note": brief.price_note if brief else "",
             "title_ru": (brief.title_ru if brief and brief.title_ru else order.title)[:200],
+            "budget_max_rub": match.budget_max_rub,
+            "fit": brief.fit if brief else True,
+            "risk_flags": brief.risk_flags if brief else [],
         }
         row = Order(
             external_id=order.external_id,
