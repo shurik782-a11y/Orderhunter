@@ -1,82 +1,101 @@
-# Каналы для мониторинга. Подпишитесь вручную, затем enabled: true.
-# username без @
+# Каналы для мониторинга.
+# 1) Подпишитесь аккаунтом TELEGRAM_USER_SESSION
+# 2) enabled: true только для реальных @username (проверьте t.me/<name>)
+# Невалидные username больше не роняют воркер — просто skip.
 
 channels:
-  - username: freelance_ru
-    title: Freelance RU (агрегатор)
+  # --- рабочие (проверьте подписку) ---
+  - username: freelance_orders
+    title: Фриланс-проекты
     enabled: true
-    categories: [web, bot, python]
+    categories: [web, bot, design]
+
+  - username: frwork3
+    title: Фриланс / удалёнка / вакансии
+    enabled: true
+    categories: [web, remote]
+
+  - username: allw0rk
+    title: All WORK — фриланс заказы
+    enabled: true
+    categories: [web, bot]
+
+  - username: itfreelancers
+    title: IT freelance and remote
+    enabled: true
+    categories: [dev, remote]
 
   - username: workasap
-    title: WorkAsap — заказы
+    title: WorkAsap
     enabled: true
     categories: [web, design]
 
-  - username: freelancehunt
-    title: Freelancehunt announcements
-    enabled: true
-    categories: [dev]
-
   - username: python_jobs
-    title: Python вакансии/заказы
+    title: Python jobs
     enabled: true
     categories: [python]
 
   - username: remotejobdev
-    title: Remote dev jobs
+    title: Remote job / dev
     enabled: true
     categories: [dev, remote]
 
+  # --- выключены: USERNAME_INVALID / не существуют ---
+  - username: freelance_ru
+    title: (invalid)
+    enabled: false
+    categories: []
+
+  - username: freelancehunt
+    title: (invalid as TG channel)
+    enabled: false
+    categories: []
+
+  - username: telegram_jobs
+    title: (invalid)
+    enabled: false
+    categories: []
+
   - username: webdev_freelance
-    title: Webdev freelance
     enabled: false
     categories: [web]
-    note: включите если канал существует и вы подписаны
 
   - username: tgfreelance
-    title: TG freelance orders
     enabled: false
-    categories: [bot, web]
+    categories: [bot]
 
   - username: ordersfordevelopers
-    title: Orders for developers
     enabled: false
     categories: [dev]
 
   - username: freelancergo
-    title: Freelancer Go
     enabled: false
     categories: [dev]
 
   - username: it_jobs_ru
-    title: IT jobs RU
     enabled: false
-    categories: [dev, job]
+    categories: [dev]
 
   - username: python_django_jobs
-    title: Python/Django jobs
     enabled: false
     categories: [python]
 
   - username: react_jobs
-    title: React jobs
     enabled: false
-    categories: [web, react]
+    categories: [web]
 
   - username: nodejs_jobs
-    title: Node.js jobs
     enabled: false
-    categories: [web, node]
-
-  - username: telegram_jobs
-    title: Telegram bots jobs
-    enabled: true
-    categories: [bot, telegram]
+    categories: [web]
 
   - username: flru_orders
-    title: FL.ru orders mirror (если есть в ваших подписках)
     enabled: false
     categories: [aggregator]
+
+  - username: zerocode_jobs
+    title: Zero-code jobs (шум для fullstack — по желанию)
+    enabled: false
+    categories: [nocode]
 
 poll_interval_seconds: 90
 realtime_events: true

@@ -4,9 +4,43 @@ import { getFullClient } from "./telegramClient.js";
 
 const seen = new Set<string>();
 const baselined = new Set<string>();
+const invalidUsernames = new Set<string>();
+
+type TgClient = Awaited<ReturnType<typeof getFullClient>>;
+
+let sharedClient: TgClient | null = null;
 
 function messageKey(channel: string, id: number): string {
   return `${channel}:${id}`;
+}
+
+async function client(): Promise<TgClient> {
+  if (!sharedClient) {
+    sharedClient = await getFullClient();
+  }
+  return sharedClient;
+}
+
+function entityUsername(entity: unknown): string {
+  const u = entity as { username?: string };
+  return (u.username || "").toLowerCase();
+}
+
+async function resolveChannel(
+  c: TgClient,
+  username: string,
+): Promise<{ username: string; entity: unknown } | null> {
+  const clean = username.replace(/^@/, "").toLowerCase();
+  if (invalidUsernames.has(clean)) return null;
+  try {
+    const entity = await c.getEntity(clean);
+    return { username: clean, entity };
+  } catch (e) {
+    invalidUsernames.add(clean);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[orderhunter] skip @${clean}: ${msg}`);
+    return null;
+  }
 }
 
 export async function pollChannelsOnce(): Promise<void> {
@@ -16,13 +50,14 @@ export async function pollChannelsOnce(): Promise<void> {
     return;
   }
 
-  const client = await getFullClient();
+  const c = await client();
   for (const ch of channels) {
-    const username = ch.username.replace(/^@/, "");
+    const resolved = await resolveChannel(c, ch.username);
+    if (!resolved) continue;
+    const { username, entity } = resolved;
     const isBaseline = !baselined.has(username);
     try {
-      const entity = await client.getEntity(username);
-      for await (const msg of client.iterMessages(entity, { limit: 15 })) {
+      for await (const msg of c.iterMessages(entity, { limit: 15 })) {
         if (!msg.id || msg.out) continue;
         const key = messageKey(username, msg.id);
         if (seen.has(key)) continue;
@@ -30,69 +65,81 @@ export async function pollChannelsOnce(): Promise<void> {
         if (isBaseline) continue;
         const text = msg.message || "";
         if (text.length < 40) continue;
-        const url = `https://t.me/${username}/${msg.id}`;
         await postToBackend({
           message_id: msg.id,
           channel: username,
           text,
-          url,
+          url: `https://t.me/${username}/${msg.id}`,
           contact_hint: extractContactHint(text),
         });
         console.log(`[orderhunter] ingested ${username}/${msg.id}`);
       }
       if (isBaseline) {
         baselined.add(username);
-        console.log(`[orderhunter] baseline done for @${username} (old posts skipped)`);
+        console.log(`[orderhunter] baseline done for @${username}`);
       }
     } catch (e) {
-      console.error(`[orderhunter] channel ${username} failed`, e);
+      console.error(`[orderhunter] poll @${username} failed`, e);
     }
   }
 }
 
 export async function startRealtimeListener(): Promise<void> {
   const channels = loadChannels();
-  const usernames = channels.map((c) => c.username.replace(/^@/, ""));
-  if (!usernames.length) return;
+  const c = await client();
 
-  const client = await getFullClient();
+  const entities: unknown[] = [];
+  const allowed = new Set<string>();
+
+  for (const ch of channels) {
+    const resolved = await resolveChannel(c, ch.username);
+    if (!resolved) continue;
+    entities.push(resolved.entity);
+    allowed.add(resolved.username);
+  }
+
+  if (!entities.length) {
+    console.warn("[orderhunter] no valid channels for realtime — poll-only mode");
+    return;
+  }
+
   const { NewMessage } = await import("telegram/events/NewMessage.js");
 
-  client.addEventHandler(async (event) => {
-    const msg = event.message;
-    if (!msg || msg.out) return;
-    const text = msg.message || "";
-    if (text.length < 40) return;
-    const chat = await event.getChat();
-    const username = (chat as { username?: string }).username || "";
-    if (!username || !usernames.includes(username)) return;
-    const key = messageKey(username, msg.id);
-    if (seen.has(key)) return;
-    seen.add(key);
-    const url = `https://t.me/${username}/${msg.id}`;
+  // Pass resolved entities only — never invalid usernames (USERNAME_INVALID crash).
+  c.addEventHandler(async (event) => {
     try {
+      const msg = event.message;
+      if (!msg || msg.out) return;
+      const text = msg.message || "";
+      if (text.length < 40) return;
+      const chat = await event.getChat();
+      const username = entityUsername(chat);
+      if (!username || !allowed.has(username)) return;
+      const key = messageKey(username, msg.id);
+      if (seen.has(key)) return;
+      seen.add(key);
       await postToBackend({
         message_id: msg.id,
         channel: username,
         text,
-        url,
+        url: `https://t.me/${username}/${msg.id}`,
         contact_hint: extractContactHint(text),
       });
       console.log(`[orderhunter] realtime ${username}/${msg.id}`);
     } catch (e) {
-      console.error("[orderhunter] realtime ingest failed", e);
+      console.error("[orderhunter] realtime handler error", e);
     }
-  }, new NewMessage({ incoming: true, chats: usernames }));
+  }, new NewMessage({ incoming: true, chats: entities as object[] }));
 
-  console.log(`[orderhunter] realtime listener on ${usernames.join(", ")}`);
+  console.log(`[orderhunter] realtime on: ${[...allowed].join(", ")}`);
 }
 
 export async function runMonitor(): Promise<void> {
-  // Baseline first so realtime doesn't double-send historical backlog.
   await pollChannelsOnce();
   await startRealtimeListener();
   const interval = ENV.POLL_INTERVAL_SECONDS * 1000;
   setInterval(() => {
     pollChannelsOnce().catch((e) => console.error("[orderhunter] poll error", e));
   }, interval);
+  console.log("[orderhunter] monitor running");
 }
