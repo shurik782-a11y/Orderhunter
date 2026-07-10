@@ -12,6 +12,7 @@ from app.core.profile_loader import get_config_dir, load_profile
 from app.core.responder import DraftGenerator
 from app.db.models import Draft, Order, OrderAction, OrderStatus
 from app.services.analytics import bump_daily
+from app.services.monitor_state import monitor
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,8 @@ class OrderPipeline:
     async def ingest(self, order: NormalizedOrder) -> Order | None:
         if await is_duplicate(self.session, order):
             return None
+
+        monitor.mark_ingest(order.source, order.title)
 
         if order.budget_min_rub is None:
             order.budget_min_rub = parse_budget_rub(
@@ -44,6 +47,14 @@ class OrderPipeline:
             return row
 
         await bump_daily(self.session, "matched")
+
+        # Pause: keep matching stats, do not draft/notify
+        if monitor.paused:
+            row = await self._save_order(
+                order, score, reasons, case_slug, OrderStatus.MATCHED
+            )
+            return row
+
         llm_score = score
         draft_text = ""
         final_case = case_slug
