@@ -133,6 +133,9 @@ async def notify_order_card(order: Order, draft_text: str) -> bool:
     intent = html.escape(str(brief.get("intent_title") or brief.get("intent") or ""))
     reasons = brief.get("reasons") or []
     reasons_s = html.escape(", ".join(str(r) for r in reasons[:6]))
+    title_ru = html.escape(
+        str(brief.get("title_ru") or order.title)[:200]
+    )
 
     bot = Bot(token=settings.bot_token)
     text = (
@@ -143,7 +146,7 @@ async def notify_order_card(order: Order, draft_text: str) -> bool:
         f"<b>Могу дать:</b>\n{offer}\n\n"
         f"<b>Цена для отклика:</b> <b>{price}</b> ₽"
         f"{f' — {price_note}' if price_note else ''}\n\n"
-        f"<b>{html.escape(order.title[:200])}</b>\n"
+        f"<b>{title_ru}</b>\n"
         f"<i>{reasons_s}</i>\n\n"
         f"<b>Черновик отклика:</b>\n{html.escape(draft_text[:2000])}\n\n"
         f"Подтвердите кнопками ниже или поправьте текст."

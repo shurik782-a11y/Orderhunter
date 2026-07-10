@@ -88,6 +88,10 @@ try {
   const outFile = path.join(repoRoot, ".telegram-user-session.local.txt");
   fs.writeFileSync(outFile, session + "\n", { encoding: "utf8", mode: 0o600 });
   console.log(`\nTELEGRAM_USER_SESSION:\n${session}\n\nСохранено: ${outFile}\n`);
+  console.log(
+    "Важно: одну session-строку нельзя использовать в двух процессах (AUTH_KEY_DUPLICATED).\n" +
+      "Нужны Railway + локально — запустите login ещё раз и получите ВТОРУЮ строку для второго места.\n",
+  );
 } catch (e) {
   prompter.close();
   console.error(e);

@@ -48,17 +48,28 @@ NOTIFIED старше 2ч снимаются автоматически.
 Bool-переменные: только `true` / `false`, либо удалите Variable.  
 Пустая строка (`FL_RU_ENABLED=`) раньше роняла API — в коде это уже обработано.
 
-**Conflict getUpdates:** у `orderhunter-api` должна быть **1 replica**. Не запускайте бота локально с тем же `BOT_TOKEN`.
+**Conflict getUpdates / двойные ответы:** у `orderhunter-api` должна быть **1 replica**.  
+В коде есть Postgres leader-lock на polling, но лучше всё равно держать 1 реплику. Не запускайте бота локально с тем же `BOT_TOKEN`.
 
 ## Сервис 2: `orderhunter-mtproto` (регион US)
 
-**Replicas = 1.** Одна и та же `TELEGRAM_USER_SESSION` на двух процессах → `406: AUTH_KEY_DUPLICATED` и crash-loop.
+**Replicas = 1** на один session-string.
 
-Если видите `AUTH_KEY_DUPLICATED`:
-1. Settings сервиса → **Replicas: 1**
-2. Не гоняйте локальный `mtproto-worker` с той же session
-3. Подождите 1–2 мин → Redeploy
-4. Если снова — `npm run telegram:login` и обновите `TELEGRAM_USER_SESSION`
+Telegram **нельзя** подключить одну и ту же `TELEGRAM_USER_SESSION` в двух местах (`AUTH_KEY_DUPLICATED`).
+
+Нужны два места (Railway + локально / второй сервер) — сделайте **два логина** (тот же аккаунт, две разные session-строки):
+
+```bash
+cd mtproto-worker
+npm run telegram:login
+# → SESSION_A в Railway
+
+# второй раз (новое устройство/сессия):
+npm run telegram:login
+# → SESSION_B локально или во второй сервис
+```
+
+Один аккаунт — ок. Одна и та же строка session — нет.
 
 **Без этих трёх переменных сервис будет рестартиться с ошибкой
 `API ID or Hash cannot be empty`:**

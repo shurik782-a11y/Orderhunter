@@ -127,6 +127,7 @@ class OrderPipeline:
             "my_offer": brief.my_offer if brief else "",
             "price_rub": brief.price_rub if brief else match.price_min_rub,
             "price_note": brief.price_note if brief else "",
+            "title_ru": (brief.title_ru if brief and brief.title_ru else order.title)[:200],
         }
         row = Order(
             external_id=order.external_id,

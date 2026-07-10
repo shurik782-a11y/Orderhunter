@@ -26,6 +26,7 @@ class DraftBundle:
     price_rub: int
     price_note: str
     intent_title: str
+    title_ru: str = ""
 
 
 def _resolve_llm_client(settings) -> tuple[AsyncOpenAI, str]:
@@ -88,15 +89,18 @@ class DraftGenerator:
 {
   "score": 0-100,
   "fit": true/false,
-  "client_need": "1-2 предложения: чего хочет заказчик",
-  "my_offer": "1-2 предложения: что конкретно сделаю я под его задачу",
+  "title_ru": "краткий заголовок заказа на русском (1 строка)",
+  "client_need": "1-2 предложения на русском: чего хочет заказчик",
+  "my_offer": "1-2 предложения на русском: что конкретно сделаю я",
   "price_rub": число — ориентир цены для отклика (целое),
-  "price_note": "кратко почему такая цена / что входит",
+  "price_note": "кратко на русском почему такая цена",
   "suggested_case_slug": "slug из портфолио или пусто",
-  "draft": "готовый текст отклика на русском 120-280 слов",
+  "draft": "готовый текст отклика ТОЛЬКО на русском 120-280 слов",
   "risk_flags": []
 }
 Правила:
+- ВЕСЬ текст в JSON (title_ru, client_need, my_offer, price_note, draft) — только русский язык.
+  Если исходный заказ на украинском/английском — переведи смысл на русский.
 - Берём только задачи: сайт/веб, бот, автоматизация, интеграция, починить, парсер.
 - Не выдумывай кейсы и цифры вне pricing/portfolio.
 - price_rub не ниже price_min_rub из контекста (можно выше, если объём большой).
@@ -107,7 +111,7 @@ class DraftGenerator:
   4) ориентир цены и сроки
   5) 1 уточняющий вопрос + CTA
 - Если не подходит — fit=false, score<50, draft короткий отказ не нужен (пустая строка ок).
-- Тон: деловой, уверенный, без эмодзи."""
+- Тон: деловой, уверенный, без эмодзи. Без украинского и английского в пользовательских полях."""
 
         user = json.dumps(
             {
@@ -182,6 +186,7 @@ class DraftGenerator:
             price_rub=price,
             price_note=str(data.get("price_note") or "ориентир до брифа")[:200],
             intent_title=match.intent_title or "Проект",
+            title_ru=str(data.get("title_ru") or order.title)[:200],
         )
 
     def _default_offer(self, match: MatchResult) -> str:
@@ -210,6 +215,7 @@ class DraftGenerator:
             ),
             price_note="минимум по нише; точнее после брифа",
             intent_title=match.intent_title or "Проект",
+            title_ru=order.title[:200],
         )
 
     def _template_draft(self, order: NormalizedOrder, match: MatchResult) -> str:
