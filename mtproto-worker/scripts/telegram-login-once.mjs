@@ -2,10 +2,7 @@
  * Вход в личный Telegram → TELEGRAM_USER_SESSION
  *   npm run telegram:login
  *
- * Если "invalid new nonce hash" / WebSocket failed:
- *   1) скрипт сам пробует TCP, потом WSS
- *   2) задайте TELEGRAM_PROXY_URL=socks5://user:pass@host:port в .env
- *   3) проверьте системное время (NTP)
+ * По умолчанию — QR (без SMS). Код по номеру чаще приходит В ПРИЛОЖЕНИЕ Telegram, не SMS.
  */
 import { config } from "dotenv";
 import fs from "fs";
@@ -66,9 +63,119 @@ function parseProxy(raw) {
   return out;
 }
 
-function isNonceOrWsError(err) {
-  const msg = String(err?.message ?? err?.errorMessage ?? err ?? "");
-  return /nonce hash|WebSocket|TIMEOUT|CONNECTION|AUTH_KEY/i.test(msg);
+function tokenToTgUrl(token) {
+  const b64 = Buffer.from(token).toString("base64url");
+  return `tg://login?token=${b64}`;
+}
+
+async function printQr(url) {
+  try {
+    const qrcode = (await import("qrcode-terminal")).default;
+    console.log("\nОтсканируйте QR в Telegram на телефоне:");
+    console.log("  Настройки → Устройства → Подключить устройство\n");
+    qrcode.generate(url, { small: true });
+  } catch {
+    console.log("\nQR-пакет не установлен — откройте ссылку на телефоне или сделайте QR сами:");
+  }
+  console.log(`\n${url}\n`);
+}
+
+function buildClient(mode) {
+  const c = new TelegramClient(new StringSession(""), apiId, apiHash, {
+    connectionRetries: 5,
+    useWSS: mode.useWSS,
+    ...(mode.proxy ? { proxy: mode.proxy } : {}),
+    timeout: 20,
+  });
+  c.setLogLevel("error");
+  return c;
+}
+
+async function connectWithFallback(modes) {
+  let lastError = null;
+  for (const mode of modes) {
+    console.log(`Подключение (${mode.label})…`);
+    const client = buildClient(mode);
+    try {
+      await client.connect();
+      console.log(`OK: ${mode.label}`);
+      return client;
+    } catch (e) {
+      lastError = e;
+      console.error(`  ${mode.label}:`, e?.message ?? e);
+      try {
+        await client.disconnect();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  throw lastError ?? new Error("connect failed");
+}
+
+async function loginQr(client, prompter) {
+  console.log("\n=== Вход по QR (без SMS) ===");
+  await client.signInUserWithQrCode(
+    { apiId, apiHash },
+    {
+      qrCode: async ({ token }) => {
+        const url = tokenToTgUrl(token);
+        await printQr(url);
+        console.log("Жду сканирование… (QR обновляется ~раз в 30с)");
+      },
+      password: async (hint) =>
+        await prompter.ask(`2FA пароль${hint ? ` (подсказка: ${hint})` : ""}: `),
+      onError: async (err) => {
+        console.error(err?.message ?? err);
+        return true;
+      },
+    },
+  );
+}
+
+async function loginPhone(client, prompter) {
+  console.log("\n=== Вход по номеру ===");
+  console.log(
+    "Важно: код чаще приходит В ПРИЛОЖЕНИЕ Telegram (чат «Telegram»), а не SMS.\n" +
+      "Откройте Telegram на телефоне и проверьте уведомления.\n",
+  );
+  await client.start({
+    phoneNumber: async () => {
+      for (;;) {
+        const phone = normalizePhone(await prompter.ask("Номер (+79...): "));
+        if (/^\+\d{10,15}$/.test(phone)) return phone;
+        console.error("  Пример: +79337518613");
+      }
+    },
+    phoneCode: async (isCodeViaApp) => {
+      const via = isCodeViaApp
+        ? "в приложении Telegram"
+        : "SMS или в приложении Telegram";
+      for (;;) {
+        const code = normalizeCode(
+          await prompter.ask(`Код (${via}, обычно 5 цифр): `),
+        );
+        if (/^\d{4,6}$/.test(code)) return code;
+      }
+    },
+    password: async (hint) =>
+      await prompter.ask(`2FA пароль${hint ? ` (подсказка: ${hint})` : ""} (или Enter): `),
+    onError: async (err) => {
+      console.error(err?.errorMessage ?? err?.message ?? err);
+      return false;
+    },
+  });
+}
+
+function saveSession(client) {
+  const session = client.session.save();
+  const outFile = path.join(repoRoot, ".telegram-user-session.local.txt");
+  fs.writeFileSync(outFile, session + "\n", { encoding: "utf8", mode: 0o600 });
+  console.log(`\nTELEGRAM_USER_SESSION:\n${session}\n\nСохранено: ${outFile}\n`);
+  console.log(
+    "Одну session-строку нельзя использовать в двух процессах.\n" +
+      "Нужны два места — login ещё раз → вторая строка.\n",
+  );
 }
 
 if (!apiId || !apiHash) {
@@ -79,100 +186,42 @@ if (!apiId || !apiHash) {
 const proxy = parseProxy(proxyUrl);
 if (proxy) {
   console.log(`Прокси из .env: socks5://${proxy.ip}:${proxy.port}`);
-  console.log("(если прокси не запущен — скрипт сам перейдёт на прямое подключение)\n");
+  console.log("(если не запущен — будет прямое подключение)\n");
 }
+
+const modes = [];
+if (proxy) modes.push({ label: "TCP+proxy", useWSS: false, proxy });
+modes.push(
+  { label: "TCP", useWSS: false, proxy: undefined },
+  { label: "WSS", useWSS: true, proxy: undefined },
+);
 
 const prompter = createPrompter();
 
-/** Prefer TCP; WSS often breaks with "invalid new nonce hash" in RU/Windows. */
-const modes = [];
-if (proxy) {
-  modes.push({ label: "TCP+proxy", useWSS: false, proxy });
-}
-modes.push(
-  { label: "TCP (без прокси)", useWSS: false, proxy: undefined },
-  { label: "WSS (без прокси)", useWSS: true, proxy: undefined },
-);
-
-let client = null;
-let lastError = null;
-
 try {
-  for (const mode of modes) {
-    console.log(`Подключение (${mode.label})…`);
-    client = new TelegramClient(new StringSession(""), apiId, apiHash, {
-      connectionRetries: 5,
-      useWSS: mode.useWSS,
-      ...(mode.proxy ? { proxy: mode.proxy } : {}),
-      timeout: 15,
-    });
-    client.setLogLevel("error");
+  const method =
+    (await prompter.ask("Вход: [1] QR без SMS (рекомендуется)  [2] номер телефона\nВыбор (1/2): ")) ||
+    "1";
 
-    try {
-      await client.start({
-        phoneNumber: async () => {
-          for (;;) {
-            const phone = normalizePhone(await prompter.ask("Номер (+79...): "));
-            if (/^\+\d{10,15}$/.test(phone)) return phone;
-            console.error("  Пример: +79337518613");
-          }
-        },
-        phoneCode: async () => {
-          for (;;) {
-            const code = normalizeCode(await prompter.ask("Код (5 цифр): "));
-            if (/^\d{5}$/.test(code)) return code;
-          }
-        },
-        password: async () => await prompter.ask("2FA (или Enter): "),
-        onError: async (err) => {
-          console.error(err?.errorMessage ?? err?.message ?? err);
-          return false;
-        },
-      });
-      lastError = null;
-      break;
-    } catch (e) {
-      lastError = e;
-      console.error(`  ${mode.label} не вышло:`, e?.message ?? e);
-      try {
-        await client.disconnect();
-      } catch {
-        /* ignore */
-      }
-      client = null;
-      if (!isNonceOrWsError(e) && modes.indexOf(mode) < modes.length - 1) {
-        // non-network auth error — still try next mode once
-      }
-    }
+  const client = await connectWithFallback(modes);
+
+  if (method.trim() === "2") {
+    await loginPhone(client, prompter);
+  } else {
+    await loginQr(client, prompter);
   }
 
-  if (!client || lastError) {
-    console.error(`
-Не удалось войти.
-
-Что попробовать:
-1. Повторите npm run telegram:login (иногда с первого раза падает handshake)
-2. В .env добавьте SOCKS5-прокси:
-   TELEGRAM_PROXY_URL=socks5://127.0.0.1:1080
-3. Проверьте, что системные часы синхронизированы
-4. VPN/прокси без DPI к Telegram DC
-`);
-    throw lastError ?? new Error("login failed");
-  }
-
-  const session = client.session.save();
+  saveSession(client);
   await client.disconnect();
   prompter.close();
-
-  const outFile = path.join(repoRoot, ".telegram-user-session.local.txt");
-  fs.writeFileSync(outFile, session + "\n", { encoding: "utf8", mode: 0o600 });
-  console.log(`\nTELEGRAM_USER_SESSION:\n${session}\n\nСохранено: ${outFile}\n`);
-  console.log(
-    "Важно: одну session-строку нельзя использовать в двух процессах (AUTH_KEY_DUPLICATED).\n" +
-      "Нужны Railway + локально — запустите login ещё раз и получите ВТОРУЮ строку для второго места.\n",
-  );
 } catch (e) {
   prompter.close();
-  console.error(e?.message ?? e);
+  console.error("\nНе удалось войти:", e?.message ?? e);
+  console.error(`
+Подсказки:
+• SMS часто НЕ приходит — смотрите код в приложении Telegram или выберите вход по QR (1)
+• Уберите мёртвый TELEGRAM_PROXY_URL из .env, если SOCKS не запущен
+• Проверьте системное время Windows
+`);
   process.exit(1);
 }
