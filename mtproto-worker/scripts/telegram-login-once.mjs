@@ -78,18 +78,21 @@ if (!apiId || !apiHash) {
 
 const proxy = parseProxy(proxyUrl);
 if (proxy) {
-  console.log(`Прокси: socks5://${proxy.ip}:${proxy.port}`);
+  console.log(`Прокси из .env: socks5://${proxy.ip}:${proxy.port}`);
+  console.log("(если прокси не запущен — скрипт сам перейдёт на прямое подключение)\n");
 }
 
 const prompter = createPrompter();
 
-/** TCP first — WSS часто даёт "invalid new nonce hash" в РФ / на Windows. */
-const modes = proxy
-  ? [{ label: "TCP+proxy", useWSS: false, proxy }]
-  : [
-      { label: "TCP", useWSS: false, proxy: undefined },
-      { label: "WSS", useWSS: true, proxy: undefined },
-    ];
+/** Prefer TCP; WSS often breaks with "invalid new nonce hash" in RU/Windows. */
+const modes = [];
+if (proxy) {
+  modes.push({ label: "TCP+proxy", useWSS: false, proxy });
+}
+modes.push(
+  { label: "TCP (без прокси)", useWSS: false, proxy: undefined },
+  { label: "WSS (без прокси)", useWSS: true, proxy: undefined },
+);
 
 let client = null;
 let lastError = null;
