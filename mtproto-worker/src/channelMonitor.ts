@@ -1,3 +1,5 @@
+import { utils } from "telegram";
+
 import { loadChannels, postToBackend, extractContactHint } from "./backendBridge.js";
 import { ENV } from "./env.js";
 import { getFullClient } from "./telegramClient.js";
@@ -5,9 +7,10 @@ import { getFullClient } from "./telegramClient.js";
 const seen = new Set<string>();
 const baselined = new Set<string>();
 const invalidUsernames = new Set<string>();
+/** peerId string → channel username */
+const peerToUsername = new Map<string, string>();
 
 type TgClient = Awaited<ReturnType<typeof getFullClient>>;
-// GramJS entity — keep loose to avoid fragile type imports across versions.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EntityLike = any;
 
@@ -25,8 +28,28 @@ async function client(): Promise<TgClient> {
 }
 
 function entityUsername(entity: unknown): string {
+  if (!entity || typeof entity !== "object") return "";
   const u = entity as { username?: string };
   return (u.username || "").toLowerCase();
+}
+
+function rememberPeer(username: string, entity: EntityLike): void {
+  try {
+    const pid = String(utils.getPeerId(entity));
+    peerToUsername.set(pid, username);
+  } catch {
+    /* ignore */
+  }
+}
+
+function usernameFromMessage(msg: EntityLike): string {
+  try {
+    if (!msg) return "";
+    const pid = String(utils.getPeerId(msg.peerId ?? msg));
+    return peerToUsername.get(pid) || "";
+  } catch {
+    return "";
+  }
 }
 
 async function resolveChannel(
@@ -37,6 +60,7 @@ async function resolveChannel(
   if (invalidUsernames.has(clean)) return null;
   try {
     const entity = await c.getEntity(clean);
+    rememberPeer(clean, entity);
     return { username: clean, entity };
   } catch (e) {
     invalidUsernames.add(clean);
@@ -106,17 +130,27 @@ export async function startRealtimeListener(): Promise<void> {
 
   const { NewMessage } = await import("telegram/events/NewMessage.js");
 
-  // Do NOT pass entity objects into NewMessage.chats — GramJS stringifies them
-  // as "[object Object]" and crashes the process. Filter by username allowlist.
+  // Do NOT pass entity objects into NewMessage.chats — GramJS crashes with
+  // "[object Object]". Filter by username allowlist (+ peer map fallback).
   c.addEventHandler(async (event) => {
     try {
       const msg = event.message;
       if (!msg || msg.out) return;
       const text = msg.message || "";
       if (text.length < 40) return;
-      const chat = await event.getChat();
-      const username = entityUsername(chat);
+
+      let username = "";
+      try {
+        const chat = await event.getChat();
+        username = entityUsername(chat);
+      } catch {
+        username = "";
+      }
+      if (!username) {
+        username = usernameFromMessage(msg);
+      }
       if (!username || !allowed.has(username)) return;
+
       const key = messageKey(username, msg.id);
       if (seen.has(key)) return;
       seen.add(key);
@@ -137,7 +171,6 @@ export async function startRealtimeListener(): Promise<void> {
 }
 
 export async function runMonitor(): Promise<void> {
-  // Keep alive if GramJS throws outside our handler.
   process.on("uncaughtException", (e) => {
     console.error("[orderhunter] uncaughtException (kept alive)", e);
   });

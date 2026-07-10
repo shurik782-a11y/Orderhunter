@@ -72,6 +72,10 @@ class Settings(BaseSettings):
         "https://freelancehunt.com/projects/skill/veb-programmirovanie/99.html"
     )
 
+    workspace_ru_enabled: bool = False
+    workspace_ru_poll_interval_seconds: int = 300
+    workspace_ru_projects_url: str = "https://workspace.ru/tenders/web-development/"
+
     handler_leads_enabled: bool = False
     handler_leads_url: str = "http://localhost:3000/api/leads"
 
@@ -85,6 +89,7 @@ class Settings(BaseSettings):
         "kwork_enabled",
         "freelance_ru_enabled",
         "freelancehunt_enabled",
+        "workspace_ru_enabled",
         "handler_leads_enabled",
         "worker_enabled",
         mode="before",
@@ -98,6 +103,7 @@ class Settings(BaseSettings):
         "kwork_poll_interval_seconds",
         "freelance_ru_poll_interval_seconds",
         "freelancehunt_poll_interval_seconds",
+        "workspace_ru_poll_interval_seconds",
         "port",
         mode="before",
     )

@@ -106,3 +106,21 @@ def normalize_freelancehunt_project(
         budget_text=budget_text,
         raw={"project_id": project_id},
     )
+
+
+def normalize_workspace_tender(
+    tender_id: str,
+    title: str,
+    description: str,
+    url: str,
+    budget_text: str = "",
+) -> NormalizedOrder:
+    return NormalizedOrder(
+        external_id=f"workspace_ru:{tender_id}",
+        source="workspace_ru",
+        title=title,
+        description=description,
+        url=url,
+        budget_text=budget_text,
+        raw={"tender_id": tender_id},
+    )

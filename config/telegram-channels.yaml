@@ -81,6 +81,37 @@ channels:
     enabled: true
     categories: [dev]
 
+  # --- доп. IT/freelance (подпишитесь session-аккаунтом; невалидные → skip) ---
+  - username: php_jobs
+    title: PHP jobs
+    enabled: true
+    categories: [php, web]
+
+  - username: laravel_jobs
+    title: Laravel jobs
+    enabled: true
+    categories: [php, web]
+
+  - username: django_jobs
+    title: Django jobs
+    enabled: true
+    categories: [python]
+
+  - username: devops_vacancy
+    title: DevOps / infra
+    enabled: true
+    categories: [devops]
+
+  - username: remote_it_jobs
+    title: Remote IT jobs
+    enabled: true
+    categories: [dev, remote]
+
+  - username: freelancestart
+    title: Freelance start
+    enabled: true
+    categories: [freelance]
+
   # --- выключены: USERNAME_INVALID / не существуют / шум ---
   - username: freelance_ru
     title: (invalid as TG channel)

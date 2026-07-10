@@ -6,6 +6,7 @@ from app.connectors.fl_ru import FlRuConnector
 from app.connectors.freelance_ru import FreelanceRuConnector
 from app.connectors.freelancehunt import FreelancehuntConnector
 from app.connectors.kwork import KworkConnector
+from app.connectors.workspace_ru import WorkspaceRuConnector
 from app.db.session import async_session
 from app.services.pipeline import OrderPipeline
 
@@ -37,6 +38,11 @@ async def run_worker_loop() -> None:
             FreelancehuntConnector(),
             "freelancehunt_enabled",
             "freelancehunt_poll_interval_seconds",
+        ),
+        (
+            WorkspaceRuConnector(),
+            "workspace_ru_enabled",
+            "workspace_ru_poll_interval_seconds",
         ),
     ]
     # Start at interval so first eligible poll runs on first tick.

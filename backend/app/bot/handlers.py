@@ -86,12 +86,35 @@ def _order_keyboard(order_id: int, url: str, source: str) -> InlineKeyboardMarku
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-async def notify_order_card(order: Order, draft_text: str) -> None:
+def _queue_actions_keyboard(active_id: int | None) -> InlineKeyboardMarkup | None:
+    if not active_id:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔁 Повторить активную",
+                    callback_data=f"oh:resend:{active_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⏭ Пропуск → следующая",
+                    callback_data=f"oh:skipactive:{active_id}",
+                )
+            ],
+        ]
+    )
+
+
+async def notify_order_card(order: Order, draft_text: str) -> bool:
+    """Send Assist card. Returns True only if at least one admin got the message."""
     settings = get_settings()
     if not settings.bot_token or not settings.admin_id_list:
-        return
+        logger.warning("notify skipped: no bot_token or admin ids")
+        return False
     if monitor.paused:
-        return
+        return False
 
     brief = {}
     try:
@@ -126,17 +149,26 @@ async def notify_order_card(order: Order, draft_text: str) -> None:
         f"Подтвердите кнопками ниже или поправьте текст."
     )
     kb = _order_keyboard(order.id, order.url, order.source)
-    for admin_id in settings.admin_id_list:
-        try:
-            await bot.send_message(
-                admin_id,
-                text,
-                reply_markup=kb,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-        except Exception:
-            logger.exception("Notify failed for %s", admin_id)
+    sent_ok = False
+    try:
+        for admin_id in settings.admin_id_list:
+            try:
+                await bot.send_message(
+                    admin_id,
+                    text,
+                    reply_markup=kb,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
+                sent_ok = True
+            except Exception:
+                logger.exception("Notify failed for %s", admin_id)
+    finally:
+        await bot.session.close()
+
+    if not sent_ok:
+        logger.error("notify_order_card: no successful send for order %s", order.id)
+        return False
 
     monitor.mark_notify()
     async with async_session() as session:
@@ -146,7 +178,7 @@ async def notify_order_card(order: Order, draft_text: str) -> None:
             pipeline = OrderPipeline(session)
             await pipeline.log_action(order.id, "notified", {})
             await session.commit()
-    await bot.session.close()
+    return True
 
 
 async def _status_text() -> str:
@@ -169,15 +201,24 @@ async def _status_text() -> str:
             f"Последний заказ: <code>{html.escape(monitor.last_source)}</code> — "
             f"{html.escape(monitor.last_title)}"
         )
-    from app.services.queue import queued_count, has_active_card
+    from app.services.queue import get_active_card, queued_count
 
     async with async_session() as session:
         waiting = await queued_count(session)
-        active = await has_active_card(session)
+        active_order = await get_active_card(session)
+
+    if active_order:
+        active_line = (
+            f"Активная: <b>#{active_order.id}</b> · "
+            f"<code>{html.escape(active_order.source)}</code> — "
+            f"{html.escape(active_order.title[:70])}"
+        )
+    else:
+        active_line = "Активная карточка: <b>нет</b>"
 
     lines += [
         "",
-        f"Активная карточка: <b>{'да' if active else 'нет'}</b>",
+        active_line,
         f"В очереди (ждут показа): <b>{waiting}</b>",
         f"Сегодня: seen <b>{dash['today']['seen']}</b> · "
         f"matched <b>{dash['today']['matched']}</b> · "
@@ -190,6 +231,7 @@ async def _status_text() -> str:
         f"· Kwork: <b>{'вкл' if settings.kwork_enabled else 'выкл'}</b>",
         f"· Freelance.ru: <b>{'вкл' if settings.freelance_ru_enabled else 'выкл'}</b>",
         f"· Freelancehunt: <b>{'вкл' if settings.freelancehunt_enabled else 'выкл'}</b>",
+        f"· Workspace.ru: <b>{'вкл' if settings.workspace_ru_enabled else 'выкл'}</b>",
         f"· LLM: <b>{'вкл' if settings.llm_enabled else 'выкл'}</b>",
         f"· Worker: <b>{'вкл' if settings.worker_enabled else 'выкл'}</b>",
     ]
@@ -294,6 +336,8 @@ def _sources_text() -> str:
             f"(каждые {s.freelance_ru_poll_interval_seconds}с)",
             f"{'🟢' if s.freelancehunt_enabled else '⚪'} Freelancehunt "
             f"(каждые {s.freelancehunt_poll_interval_seconds}с)",
+            f"{'🟢' if s.workspace_ru_enabled else '⚪'} Workspace.ru "
+            f"(каждые {s.workspace_ru_poll_interval_seconds}с)",
             "",
             f"LLM: {'🟢' if s.llm_enabled else '⚪'} {html.escape(s.llm_model)}",
             f"Worker API: {'🟢' if s.worker_enabled else '⚪'}",
@@ -302,7 +346,7 @@ def _sources_text() -> str:
             "",
             "Вкл/выкл площадок — Railway Variables "
             "(FL_RU_ENABLED / KWORK_ENABLED / FREELANCE_RU_ENABLED / "
-            "FREELANCEHUNT_ENABLED), затем redeploy.",
+            "FREELANCEHUNT_ENABLED / WORKSPACE_RU_ENABLED), затем redeploy.",
         ]
     )
 
@@ -315,7 +359,7 @@ def _help_text() -> str:
             "Кнопки <b>под строкой ввода</b>:",
             f"· {BTN_STATUS} — ищет или на паузе, последние события",
             f"· {BTN_STATS} — воронка и цифры",
-            f"· {BTN_QUEUE} — сколько ждут + активная; при пустой активной — следующая",
+            f"· {BTN_QUEUE} — активная + ждущие; повторить / пропуск → следующая",
             f"· {BTN_SOURCES} — какие площадки включены",
             f"· {BTN_PAUSE} / {BTN_RESUME} — копить очередь без карточек / снова слать",
             "",
@@ -324,6 +368,9 @@ def _help_text() -> str:
             "· 🚀 Kwork отклик — отправить через API → следующая",
             "· ✏️ Править — прислать новый текст одним сообщением",
             "· ⏭ Пропуск / 🔗 Открыть → следующая",
+            "",
+            "Если карточки «нет в чате», а статус говорит «активная есть» — "
+            "откройте Очередь → «Повторить» или «Пропуск → следующая».",
         ]
     )
 
@@ -376,10 +423,25 @@ async def btn_stats(message: Message) -> None:
 
 @router.message(F.text == BTN_QUEUE)
 async def btn_queue(message: Message) -> None:
-    from app.services.queue import dispatch_next, has_active_card
+    from app.services.queue import dispatch_next, get_active_card, has_active_card
 
     text = await _queue_text()
-    await message.answer(text, reply_markup=main_keyboard(), parse_mode="HTML")
+    async with async_session() as session:
+        active = await get_active_card(session)
+        active_id = active.id if active else None
+
+    await message.answer(
+        text,
+        reply_markup=main_keyboard(),
+        parse_mode="HTML",
+    )
+    kb = _queue_actions_keyboard(active_id)
+    if kb:
+        await message.answer(
+            "Если карточки нет в чате — повторите или пропустите активную:",
+            reply_markup=kb,
+        )
+
     async with async_session() as session:
         if not await has_active_card(session) and not monitor.paused:
             nxt = await dispatch_next(session)
@@ -388,6 +450,51 @@ async def btn_queue(message: Message) -> None:
                     f"Показана следующая из очереди: #{nxt.id}",
                     reply_markup=main_keyboard(),
                 )
+
+
+@router.callback_query(F.data.startswith("oh:resend:"))
+async def cb_resend(query: CallbackQuery) -> None:
+    order_id = int(query.data.split(":")[2])
+    async with async_session() as session:
+        order = await session.get(Order, order_id)
+        draft = await session.scalar(
+            select(Draft).where(Draft.order_id == order_id).order_by(Draft.id.desc())
+        )
+        if not order or not draft:
+            await query.answer("Нет черновика", show_alert=True)
+            return
+        # Temporarily allow re-send while staying NOTIFIED
+        text = draft.text
+        src_order = order
+    ok = await notify_order_card(src_order, text)
+    await query.answer("Отправлено снова" if ok else "Не удалось отправить", show_alert=not ok)
+
+
+@router.callback_query(F.data.startswith("oh:skipactive:"))
+async def cb_skip_active(query: CallbackQuery) -> None:
+    from app.services.queue import dispatch_next, skip_active
+
+    async with async_session() as session:
+        skipped = await skip_active(session)
+        if skipped:
+            pipeline = OrderPipeline(session)
+            await pipeline.log_action(skipped.id, "skipped", {"via": "queue_menu"})
+    await query.answer("Активная пропущена")
+    try:
+        await query.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    nxt = await dispatch_next()
+    if nxt:
+        await query.message.answer(
+            f"Следующая: #{nxt.id}",
+            reply_markup=main_keyboard(),
+        )
+    else:
+        await query.message.answer(
+            "Очередь пуста или на паузе.",
+            reply_markup=main_keyboard(),
+        )
 
 
 @router.message(F.text == BTN_SOURCES)

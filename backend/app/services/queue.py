@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Draft, Order, OrderStatus
@@ -12,6 +13,8 @@ from app.db.session import async_session
 from app.services.monitor_state import monitor
 
 logger = logging.getLogger(__name__)
+
+STALE_NOTIFIED_HOURS = 2
 
 
 async def has_active_card(session: AsyncSession) -> bool:
@@ -57,6 +60,42 @@ async def get_active_card(session: AsyncSession) -> Order | None:
     )
 
 
+async def release_stale_notified(
+    session: AsyncSession, hours: float = STALE_NOTIFIED_HOURS
+) -> int:
+    """Mark old NOTIFIED as SKIPPED so the queue can move."""
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
+    result = await session.execute(
+        update(Order)
+        .where(
+            Order.status == OrderStatus.NOTIFIED,
+            Order.updated_at < cutoff,
+        )
+        .values(status=OrderStatus.SKIPPED)
+    )
+    await session.commit()
+    n = result.rowcount or 0
+    if n:
+        logger.info("Released %s stale NOTIFIED (>%sh) → SKIPPED", n, hours)
+    return n
+
+
+async def skip_active(session: AsyncSession) -> Order | None:
+    """Skip current NOTIFIED card (all of them) so next can show."""
+    actives = (
+        await session.scalars(
+            select(Order).where(Order.status == OrderStatus.NOTIFIED)
+        )
+    ).all()
+    if not actives:
+        return None
+    last = actives[0]
+    for o in actives:
+        o.status = OrderStatus.SKIPPED
+    await session.commit()
+    return last
+
+
 async def dispatch_next(session: AsyncSession | None = None) -> Order | None:
     """
     If no active NOTIFIED card and not paused — send oldest DRAFTED to chat.
@@ -65,6 +104,7 @@ async def dispatch_next(session: AsyncSession | None = None) -> Order | None:
     from app.bot.handlers import notify_order_card
 
     async def _run(sess: AsyncSession) -> Order | None:
+        await release_stale_notified(sess)
         if monitor.paused:
             logger.info("dispatch_next skipped: paused")
             return None
@@ -87,11 +127,13 @@ async def dispatch_next(session: AsyncSession | None = None) -> Order | None:
             await sess.commit()
             return await _run(sess)
 
-        # Detach values before notify (opens its own session / sets NOTIFIED)
         text = draft.text
         order_id = order.id
         await sess.commit()
-        await notify_order_card(order, text)
+        ok = await notify_order_card(order, text)
+        if not ok:
+            logger.warning("dispatch_next: notify failed for order %s", order_id)
+            return None
         logger.info("dispatch_next notified order %s", order_id)
         return order
 

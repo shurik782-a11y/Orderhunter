@@ -17,6 +17,7 @@ FL_RU_ENABLED=false
 KWORK_ENABLED=false
 FREELANCE_RU_ENABLED=false
 FREELANCEHUNT_ENABLED=false
+WORKSPACE_RU_ENABLED=false
 HANDLER_LEADS_ENABLED=false
 ```
 
@@ -33,9 +34,13 @@ FREELANCE_RU_ENABLED=true
 FREELANCE_RU_SEARCH_URL=https://freelance.ru/project/search?q=python
 FREELANCEHUNT_ENABLED=true
 FREELANCEHUNT_PROJECTS_URL=https://freelancehunt.com/projects/skill/veb-programmirovanie/99.html
+WORKSPACE_RU_ENABLED=true
+WORKSPACE_RU_PROJECTS_URL=https://workspace.ru/tenders/web-development/
 ```
 
-**Очередь карточек:** в чат уходит **одна** активная; остальные matched ждут в «Очередь». После Отправить / Пропуск / Kwork — следующая автоматически.
+**Очередь карточек:** в чат уходит **одна** активная; остальные ждут в «Очередь».  
+Если «активная есть», а сообщения нет — Очередь → «Повторить» или «Пропуск → следующая».  
+NOTIFIED старше 2ч снимаются автоматически.
 
 **OpenRouter:** ключ `sk-or-...` + `LLM_BASE_URL=https://openrouter.ai/api/v1` + модель вида `deepseek/deepseek-chat`.  
 Если оставить `api.deepseek.com` с ключом OpenRouter — будет **401**.
