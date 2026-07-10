@@ -23,6 +23,7 @@ class FlRuConnector(BaseConnector):
             return []
 
         orders: list[NormalizedOrder] = []
+        first_run = not self._seen
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
@@ -88,6 +89,9 @@ class FlRuConnector(BaseConnector):
                             )
                         )
                 await browser.close()
+                if first_run:
+                    logger.info("FL.ru baseline done (%s projects marked seen)", len(self._seen))
+                    return []
         except Exception:
             logger.exception("FL.ru poll failed")
         return orders
