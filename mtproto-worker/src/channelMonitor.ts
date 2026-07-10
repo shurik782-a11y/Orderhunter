@@ -1,5 +1,3 @@
-import { utils } from "telegram";
-
 import { loadChannels, postToBackend, extractContactHint } from "./backendBridge.js";
 import { ENV } from "./env.js";
 import { getFullClient } from "./telegramClient.js";
@@ -29,16 +27,6 @@ async function client(): Promise<TgClient> {
 function entityUsername(entity: unknown): string {
   const u = entity as { username?: string };
   return (u.username || "").toLowerCase();
-}
-
-/** Peer id string for NewMessage.chats — never pass raw entity objects. */
-function peerIdOf(entity: EntityLike): string | null {
-  try {
-    return String(utils.getPeerId(entity));
-  } catch {
-    if (entity?.id != null) return String(entity.id);
-    return null;
-  }
 }
 
 async function resolveChannel(
@@ -103,14 +91,11 @@ export async function startRealtimeListener(): Promise<void> {
   const channels = loadChannels();
   const c = await client();
 
-  const chatIds: string[] = [];
   const allowed = new Set<string>();
 
   for (const ch of channels) {
     const resolved = await resolveChannel(c, ch.username);
     if (!resolved) continue;
-    const pid = peerIdOf(resolved.entity);
-    if (pid) chatIds.push(pid);
     allowed.add(resolved.username);
   }
 
@@ -152,8 +137,7 @@ export async function startRealtimeListener(): Promise<void> {
 }
 
 export async function runMonitor(): Promise<void> {
-  // GramJS can throw outside our handler while resolving event filters —
-  // keep the process alive so poll loop continues.
+  // Keep alive if GramJS throws outside our handler.
   process.on("uncaughtException", (e) => {
     console.error("[orderhunter] uncaughtException (kept alive)", e);
   });
