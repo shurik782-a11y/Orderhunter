@@ -68,16 +68,26 @@ function tokenToTgUrl(token) {
   return `tg://login?token=${b64}`;
 }
 
-async function printQr(url) {
+async function printLoginLink(url) {
+  console.log("\n========================================");
+  console.log("Откройте эту ссылку на ПК (Telegram Desktop):");
+  console.log("========================================\n");
+  console.log(url);
+  console.log("\n========================================");
+  console.log("Скопируйте строку выше, если не открылось само.\n");
+
   try {
-    const qrcode = (await import("qrcode-terminal")).default;
-    console.log("\nОтсканируйте QR в Telegram на телефоне:");
-    console.log("  Настройки → Устройства → Подключить устройство\n");
-    qrcode.generate(url, { small: true });
+    const { exec } = await import("child_process");
+    const cmd =
+      process.platform === "win32"
+        ? `start "" "${url}"`
+        : process.platform === "darwin"
+          ? `open '${url}'`
+          : `xdg-open '${url}'`;
+    exec(cmd);
   } catch {
-    console.log("\nQR-пакет не установлен — откройте ссылку на телефоне или сделайте QR сами:");
+    /* ignore */
   }
-  console.log(`\n${url}\n`);
 }
 
 function buildClient(mode) {
@@ -114,14 +124,14 @@ async function connectWithFallback(modes) {
 }
 
 async function loginQr(client, prompter) {
-  console.log("\n=== Вход по QR (без SMS) ===");
+  console.log("\n=== Вход по ссылке tg:// (без SMS) ===");
   await client.signInUserWithQrCode(
     { apiId, apiHash },
     {
       qrCode: async ({ token }) => {
         const url = tokenToTgUrl(token);
-        await printQr(url);
-        console.log("Жду сканирование… (QR обновляется ~раз в 30с)");
+        await printLoginLink(url);
+        console.log("Жду подтверждение в Telegram Desktop… (ссылка обновляется ~раз в 30с)");
       },
       password: async (hint) =>
         await prompter.ask(`2FA пароль${hint ? ` (подсказка: ${hint})` : ""}: `),
