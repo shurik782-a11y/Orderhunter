@@ -90,7 +90,8 @@
 3. Dockerfile Path: `mtproto-worker/Dockerfile`
 4. Region: **US West / US East** (как Jerome)
 5. Variables → таблица mtproto
-6. Restart после того, как api получил публичный URL
+6. **Replicas = 1** (иначе `AUTH_KEY_DUPLICATED`)
+7. Restart после того, как api получил публичный URL
 
 ---
 
