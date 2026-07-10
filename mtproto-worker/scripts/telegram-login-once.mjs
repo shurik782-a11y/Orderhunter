@@ -200,8 +200,9 @@ const prompter = createPrompter();
 
 try {
   const method =
-    (await prompter.ask("Вход: [1] QR без SMS (рекомендуется)  [2] номер телефона\nВыбор (1/2): ")) ||
-    "1";
+    (await prompter.ask(
+      "Вход: [1] ссылка tg:// (без SMS, для ПК)  [2] номер телефона\nВыбор (1/2): ",
+    )) || "1";
 
   const client = await connectWithFallback(modes);
 
