@@ -1,0 +1,10 @@
+.env
+.env.local
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+dist/
+.telegram-user-session.local.txt
+playwright/.cache/

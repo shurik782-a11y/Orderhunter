@@ -1,0 +1,124 @@
+# Профиль матчинга — экспорт из resume_ru.md + Handler defaults
+
+developer:
+  name: "Порохня Игорь"
+  brand: "Handler Studio"
+  role: "Fullstack-разработчик · E-commerce · AI-интеграции"
+  telegram: "@Gersaven"
+  email: "Shurik782@gmail.com"
+  github: "https://github.com/shurik782-a11y"
+  format: remote
+
+pricing:
+  landing_min_rub: 30000
+  bot_min_rub: 25000
+  webapp_min_rub: 80000
+  project_min_rub: 30000
+  hourly_min_rub: null
+  payment: "50% предоплата, 50% по завершению"
+
+process:
+  response_hours: 2
+  support_days: 30
+  steps:
+    - "Заявка → ответ в течение 2 часов"
+    - "Бриф 20–30 минут"
+    - "Фиксированная оценка и ТЗ"
+    - "Спринты с еженедельными демо"
+    - "Деплой + 30 дней поддержки"
+
+services:
+  - id: web
+    title: "Веб-разработка"
+    keywords: [лендинг, saas, crm, next.js, react, сайт, интернет-магазин]
+  - id: bot
+    title: "Telegram-боты и Mini Apps"
+    keywords: [telegram, бот, mini app, webapp, aiogram, gramjs, telegraf]
+  - id: automation
+    title: "Автоматизация"
+    keywords: [парсер, парсинг, cron, очередь, worker, smm, автопост]
+  - id: backend
+    title: "Backend & API"
+    keywords: [fastapi, api, postgresql, prisma, rest, webhook, микросервис]
+  - id: ecommerce
+    title: "E-commerce"
+    keywords: [cs-cart, маркетплейс, корзина, сдэк, оплата, tochka, cdek]
+  - id: consulting
+    title: "Консультации"
+    keywords: [аудит, code review, архитектура, prod, инцидент]
+
+skills_positive:
+  - python
+  - fastapi
+  - typescript
+  - next.js
+  - react
+  - node.js
+  - php
+  - cs-cart
+  - postgresql
+  - docker
+  - telegram
+  - prisma
+  - ai
+  - llm
+  - deepseek
+  - webhook
+  - vk
+  - instagram
+  - сдэк
+  - парсер
+  - playwright
+  - nginx
+  - railway
+  - vercel
+
+skills_negative:
+  - 1с
+  - 1c
+  - bitrix с нуля
+  - wordpress за
+  - только верстка
+  - только дизайн
+  - seo без
+  - blockchain
+  - nft
+  - solidity
+  - swift
+  - kotlin native
+  - студент за
+  - бесплатно за отзыв
+  - копирайтинг
+  - только текст
+
+keywords_boost:
+  telegram: 20
+  бот: 15
+  fastapi: 15
+  next.js: 12
+  react: 10
+  e-commerce: 15
+  интернет-магазин: 12
+  cs-cart: 20
+  mini app: 18
+  парсер: 10
+  ai: 10
+  интеграция: 8
+
+thresholds:
+  min_score_rules: 40
+  min_score_notify: 65
+  min_score_llm: 60
+  max_drafts_per_day: 5
+  max_responses_per_day: 5
+  response_delay_seconds_min: 60
+  response_delay_seconds_max: 180
+
+tone: business_b2b
+# business_b2b | freelance_casual
+
+offer_snippets:
+  hook: "Прочитал ТЗ — задача понятна."
+  cta: "Могу созвониться сегодня или прислать план на одну страницу."
+  portfolio_url: "https://github.com/shurik782-a11y"
+  contact: "@Gersaven"

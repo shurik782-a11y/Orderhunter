@@ -1,0 +1,80 @@
+[
+  {
+    "slug": "parfumistery",
+    "title": "Parfumistery",
+    "subtitle": "Mini App — магазин духов с админкой",
+    "problem": "Telegram Mini App с каталогом, корзиной, оплатой, админ-панелью и AI-подбором.",
+    "solution": "React Mini App, Express + Prisma + PostgreSQL, CDEK, Telegram Login, admin AI.",
+    "results": ["Полный e-commerce в Telegram", "Admin + AI-ассистент", "Миграция Railway → Cloud.ru"],
+    "stack": ["React", "Express", "Prisma", "PostgreSQL", "Telegram Mini App"],
+    "match_tags": ["telegram", "e-commerce", "mini app", "магазин", "prisma", "admin", "ai"]
+  },
+  {
+    "slug": "beardnuts",
+    "title": "BeardNuts",
+    "subtitle": "Multi-tenant SMM autopromo",
+    "problem": "Автопромо в Telegram, VK, Instagram, TikTok, YouTube — единая платформа.",
+    "solution": "FastAPI + worker autopilot, Next.js admin, multi-profile queue.",
+    "results": ["Единая админка для соцсетей", "Исправлен автопост VK", "JWT hardening, SSRF protection"],
+    "stack": ["Python", "FastAPI", "Next.js", "PostgreSQL"],
+    "match_tags": ["smm", "автоматизация", "vk", "очередь", "fastapi", "instagram"]
+  },
+  {
+    "slug": "jummy",
+    "title": "Jummy.ru",
+    "subtitle": "Маркетплейс CS-Cart Multivendor",
+    "problem": "Ювелирный маркетплейс — модули без правки ядра, интеграции, AI-премодерация.",
+    "solution": "PHP 8.2, модули apod_*, VendorBot + Контур.Фокус, wishlist, редизайн по Figma.",
+    "results": ["7+ модулей CS-Cart", "AI-премодерация регистрации", "VendorBot для юристов"],
+    "stack": ["PHP", "CS-Cart", "Telegram", "Webhook"],
+    "match_tags": ["cs-cart", "маркетплейс", "php", "e-commerce", "интеграция", "контур"]
+  },
+  {
+    "slug": "warclicker",
+    "title": "WarClicker",
+    "subtitle": "Telegram WebApp — кликер",
+    "problem": "Игровой Telegram WebApp с Pixi, экономикой и real-time War Front.",
+    "solution": "Pixi.js, WebSocket, Node server, Telegram WebApp.",
+    "results": ["30+ игровых систем", "War Front real-time", "Telegram WebApp prod"],
+    "stack": ["Pixi.js", "React", "WebSocket", "Telegram WebApp"],
+    "match_tags": ["telegram webapp", "игра", "pixi", "websocket", "mini app"]
+  },
+  {
+    "slug": "mtproto-jerome",
+    "title": "MTproto / Jerome",
+    "subtitle": "MTProto worker + AI",
+    "problem": "Личный Telegram-аккаунт с AI на split-архитектуре Railway + backend.",
+    "solution": "GramJS на Railway US, internal API, DM и @-mentions.",
+    "results": ["Стабильный MTProto", "AI через backend", "SOCKS5 proxy"],
+    "stack": ["GramJS", "TypeScript", "Railway"],
+    "match_tags": ["telegram", "mtproto", "бот", "ai", "gramjs"]
+  },
+  {
+    "slug": "music_school_bot",
+    "title": "Music School CRM",
+    "subtitle": "CRM для музыкальных школ",
+    "problem": "Бронирование, подписки, Telegram Payments, админ-CMS.",
+    "solution": "aiogram 3, PostgreSQL, Alembic, SMM в каналы.",
+    "stack": ["Python", "aiogram", "PostgreSQL"],
+    "match_tags": ["telegram", "бот", "crm", "бронирование", "aiogram"]
+  },
+  {
+    "slug": "handler",
+    "title": "Handler",
+    "subtitle": "Лендинг + CRM + аналитика",
+    "problem": "Воронка привлечения клиентов с admin CMS.",
+    "solution": "Next.js 16, Prisma, Postgres, Resend, analytics funnel.",
+    "results": ["Lead CRM", "Conversion funnel", "Portfolio CMS"],
+    "stack": ["Next.js", "Prisma", "PostgreSQL"],
+    "match_tags": ["лендинг", "next.js", "crm", "воронка"]
+  },
+  {
+    "slug": "instapi",
+    "title": "InstAPI",
+    "subtitle": "Instagram SMM panel",
+    "problem": "Метрики, публикации, AI-подписи.",
+    "solution": "React + Express, Meta Graph API, AI captions.",
+    "stack": ["React", "Express", "Meta API"],
+    "match_tags": ["instagram", "smm", "meta", "ai", "публикация"]
+  }
+]

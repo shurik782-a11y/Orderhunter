@@ -1,0 +1,11 @@
+# Если Root Directory = repo root, в Railway UI укажите:
+# Dockerfile Path = backend/Dockerfile
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

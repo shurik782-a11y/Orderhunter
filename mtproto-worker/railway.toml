@@ -1,0 +1,8 @@
+# Root Directory = repo root → Dockerfile Path = mtproto-worker/Dockerfile
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "mtproto-worker/Dockerfile"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
