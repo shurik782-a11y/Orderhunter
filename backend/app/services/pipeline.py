@@ -108,13 +108,18 @@ class OrderPipeline:
 
     async def _under_daily_draft_limit(self) -> bool:
         max_drafts = int(self.profile.thresholds.get("max_drafts_per_day", 5))
-        today = datetime.now(UTC).date().isoformat()
+        day_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         count = await self.session.scalar(
             select(func.count(Order.id)).where(
                 Order.status.in_(
-                    [OrderStatus.DRAFTED, OrderStatus.NOTIFIED, OrderStatus.APPROVED]
+                    [
+                        OrderStatus.DRAFTED,
+                        OrderStatus.NOTIFIED,
+                        OrderStatus.APPROVED,
+                        OrderStatus.SENT,
+                    ]
                 ),
-                func.date(Order.created_at) == today,
+                Order.created_at >= day_start,
             )
         )
         return (count or 0) < max_drafts
