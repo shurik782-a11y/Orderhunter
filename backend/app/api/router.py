@@ -53,4 +53,12 @@ async def analytics_funnel(
 
 @router.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "service": "orderhunter"}
+    from app.bot.runner import bot_runtime
+    from app.config import get_settings
+
+    settings = get_settings()
+    bot = {
+        "configured": bool(settings.bot_token),
+        **bot_runtime,
+    }
+    return {"status": "ok", "service": "orderhunter", "bot": bot}
