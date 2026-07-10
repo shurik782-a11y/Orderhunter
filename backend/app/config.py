@@ -1,6 +1,7 @@
 from functools import lru_cache
+from typing import Any
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,15 @@ def _to_sync(url: str) -> str:
     if "+asyncpg" in url:
         return url.replace("postgresql+asyncpg://", "postgresql://", 1)
     return url
+
+
+def _empty_to_none(v: Any) -> Any:
+    """Railway often sets Variables to '' — treat as unset."""
+    if v is None:
+        return None
+    if isinstance(v, str) and not v.strip():
+        return None
+    return v
 
 
 class Settings(BaseSettings):
@@ -58,6 +68,28 @@ class Settings(BaseSettings):
     worker_enabled: bool = True
     config_dir: str = "../config"
     port: int = 8000
+
+    @field_validator(
+        "llm_enabled",
+        "fl_ru_enabled",
+        "kwork_enabled",
+        "handler_leads_enabled",
+        "worker_enabled",
+        mode="before",
+    )
+    @classmethod
+    def empty_bool_as_default(cls, v: Any) -> Any:
+        return _empty_to_none(v)
+
+    @field_validator(
+        "fl_ru_poll_interval_seconds",
+        "kwork_poll_interval_seconds",
+        "port",
+        mode="before",
+    )
+    @classmethod
+    def empty_int_as_default(cls, v: Any) -> Any:
+        return _empty_to_none(v)
 
     @model_validator(mode="after")
     def normalize_db_urls(self) -> "Settings":

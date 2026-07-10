@@ -18,6 +18,9 @@ KWORK_ENABLED=false
 HANDLER_LEADS_ENABLED=false
 ```
 
+Bool-переменные: только `true` / `false`, либо удалите Variable.  
+Пустая строка (`FL_RU_ENABLED=`) раньше роняла API — в коде это уже обработано.
+
 ## Сервис 2: `orderhunter-mtproto` (регион US)
 
 **Без этих трёх переменных сервис будет рестартиться с ошибкой
