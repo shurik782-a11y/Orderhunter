@@ -635,18 +635,30 @@ async def cb_kwork(query: CallbackQuery) -> None:
             await query.answer("Нет project_id")
             return
         price = order.budget_min_rub or 30000
+        # Kwork exchange: min duration days; name shown on offer card
+        days = 7
+        kwork_name = (order.title or "Разработка под задачу")[:80]
         try:
             connector = KworkConnector()
-            await connector.submit_offer(int(project_id), draft.text, price)
+            await connector.submit_offer(
+                int(project_id),
+                draft.text,
+                int(price),
+                days=days,
+                kwork_name=kwork_name,
+            )
             order.status = OrderStatus.SENT
             pipeline = OrderPipeline(session)
-            await pipeline.log_action(order_id, "sent", {"via": "kwork_api"})
+            await pipeline.log_action(order_id, "sent", {"via": "kwork_web"})
             await session.commit()
             await push_to_handler_lead(order, draft.text)
             await query.answer("Отклик отправлен на Kwork")
         except Exception as e:
             logger.exception("Kwork submit failed")
-            await query.answer(f"Ошибка: {e}", show_alert=True)
+            err = str(e)
+            if len(err) > 180:
+                err = err[:177] + "…"
+            await query.answer(f"Ошибка: {err}", show_alert=True)
             return
     await query.message.edit_reply_markup(reply_markup=None)
     await dispatch_next()
