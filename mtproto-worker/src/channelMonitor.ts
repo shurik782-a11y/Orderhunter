@@ -1,3 +1,5 @@
+import { utils } from "telegram";
+
 import { loadChannels, postToBackend, extractContactHint } from "./backendBridge.js";
 import { ENV } from "./env.js";
 import { getFullClient } from "./telegramClient.js";
@@ -27,6 +29,16 @@ async function client(): Promise<TgClient> {
 function entityUsername(entity: unknown): string {
   const u = entity as { username?: string };
   return (u.username || "").toLowerCase();
+}
+
+/** Peer id string for NewMessage.chats — never pass raw entity objects. */
+function peerIdOf(entity: EntityLike): string | null {
+  try {
+    return String(utils.getPeerId(entity));
+  } catch {
+    if (entity?.id != null) return String(entity.id);
+    return null;
+  }
 }
 
 async function resolveChannel(
@@ -91,23 +103,26 @@ export async function startRealtimeListener(): Promise<void> {
   const channels = loadChannels();
   const c = await client();
 
-  const entities: EntityLike[] = [];
+  const chatIds: string[] = [];
   const allowed = new Set<string>();
 
   for (const ch of channels) {
     const resolved = await resolveChannel(c, ch.username);
     if (!resolved) continue;
-    entities.push(resolved.entity);
+    const pid = peerIdOf(resolved.entity);
+    if (pid) chatIds.push(pid);
     allowed.add(resolved.username);
   }
 
-  if (!entities.length) {
+  if (!allowed.size) {
     console.warn("[orderhunter] no valid channels for realtime — poll-only mode");
     return;
   }
 
   const { NewMessage } = await import("telegram/events/NewMessage.js");
 
+  // Do NOT pass entity objects into NewMessage.chats — GramJS stringifies them
+  // as "[object Object]" and crashes the process. Filter by username allowlist.
   c.addEventHandler(async (event) => {
     try {
       const msg = event.message;
@@ -131,12 +146,21 @@ export async function startRealtimeListener(): Promise<void> {
     } catch (e) {
       console.error("[orderhunter] realtime handler error", e);
     }
-  }, new NewMessage({ incoming: true, chats: entities }));
+  }, new NewMessage({ incoming: true }));
 
   console.log(`[orderhunter] realtime on: ${[...allowed].join(", ")}`);
 }
 
 export async function runMonitor(): Promise<void> {
+  // GramJS can throw outside our handler while resolving event filters —
+  // keep the process alive so poll loop continues.
+  process.on("uncaughtException", (e) => {
+    console.error("[orderhunter] uncaughtException (kept alive)", e);
+  });
+  process.on("unhandledRejection", (e) => {
+    console.error("[orderhunter] unhandledRejection (kept alive)", e);
+  });
+
   await pollChannelsOnce();
   await startRealtimeListener();
   const interval = ENV.POLL_INTERVAL_SECONDS * 1000;

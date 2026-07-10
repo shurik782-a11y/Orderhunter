@@ -62,8 +62,8 @@ channels:
     categories: [web]
 
   - username: js_jobs
-    title: JS jobs
-    enabled: true
+    title: JS jobs (USERNAME_INVALID)
+    enabled: false
     categories: [js, web]
 
   - username: frontend_jobs
