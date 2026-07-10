@@ -13,6 +13,7 @@ _BUDGET_PATTERNS = [
     re.compile(r"от\s*(\d[\d\s]*)\s*(?:₽|руб|р\.?)", re.I),
     re.compile(r"до\s*(\d[\d\s]*)\s*(?:₽|руб|р\.?)", re.I),
     re.compile(r"(\d[\d\s]*)\s*(?:₽|руб|р\.?)", re.I),
+    re.compile(r"(\d[\d\s]*)\s*(?:uah|грн|₴)", re.I),
     re.compile(r"\$(\d[\d\s]*)", re.I),
 ]
 
@@ -32,8 +33,11 @@ def parse_budget_rub(text: str) -> int | None:
             value = int(raw)
         except ValueError:
             continue
-        if "$" in pat.pattern:
-            value *= 90  # rough USD→RUB for filter only
+        matched = m.group(0).lower()
+        if "$" in matched or "usd" in matched:
+            value = int(value * 90)
+        elif "uah" in matched or "грн" in matched or "₴" in matched:
+            value = int(value * 2.2)  # rough UAH→RUB for filter only
         if value < 500:  # ignore noise like "1 руб"
             continue
         return value
@@ -166,24 +170,20 @@ class RulesMatcher:
             f"{order.budget_text} {order.description} {order.title}"
         )
         thr = self.profile.thresholds
-        if (
-            thr.get("reject_if_budget_below_min", True)
-            and budget is not None
-            and budget < price_min
-        ):
-            if thr.get("soft_budget") and budget >= int(price_min * 0.7):
-                score *= 0.7
-                reasons.append(f"бюджет {budget} чуть ниже {price_min}")
-            else:
+        if budget is not None and budget < price_min:
+            # Soft by default: penalize, rarely hard-reject (only if explicitly enabled)
+            if thr.get("reject_if_budget_below_min") and budget < int(price_min * 0.5):
                 return MatchResult(
                     0.0,
-                    [f"бюджет {budget} < {price_min}"],
+                    [f"бюджет {budget} << {price_min}"],
                     case_slug,
                     intent_id,
                     intent_title,
                     price_min,
                     self._client_need(order, intent_title),
                 )
+            score *= 0.75 if budget < int(price_min * 0.7) else 0.9
+            reasons.append(f"бюджет {budget} ниже {price_min}")
 
         return MatchResult(
             min(score, 100.0),

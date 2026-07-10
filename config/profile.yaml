@@ -48,6 +48,16 @@ intents:
       - личный кабинет
       - crm
       - saas
+      - wordpress
+      - laravel
+      - django
+      - fullstack
+      - full-stack
+      - веб
+      - web-разработ
+      - интернет магазин
+      - доработка сайта
+      - разработка сайта
   bot:
     title: "Бот / Mini App"
     price_key: bot_min_rub
@@ -63,6 +73,8 @@ intents:
       - чат-бот
       - chatbot
       - бота
+      - телеграм-бот
+      - telegram-бот
   automation:
     title: "Автоматизация"
     price_key: automation_min_rub
@@ -79,6 +91,7 @@ intents:
       - пайплайн
       - автозагруз
       - smm
+      - автозаполн
   integration:
     title: "Интеграция / API"
     price_key: integration_min_rub
@@ -96,10 +109,12 @@ intents:
       - 1с обмен
       - коннектор
       - синхронизац
+      - bitrix24
+      - amoCRM
   fix:
     title: "Починить / доработать"
     price_key: fix_min_rub
-    weight: 20
+    weight: 22
     keywords:
       - починить
       - починка
@@ -113,6 +128,8 @@ intents:
       - сломал
       - падает
       - рефактор
+      - пофиксить
+      - fix
   parse:
     title: "Парсер / сбор данных"
     price_key: parse_min_rub
@@ -128,6 +145,29 @@ intents:
       - мониторинг цен
       - playwright
       - selenium
+      - сбор постов
+      - выгрузка данных
+  # Широкий IT-интент: «нужен программист / разработчик» без слова сайт/бот
+  dev:
+    title: "Разработка / программирование"
+    price_key: project_min_rub
+    weight: 18
+    keywords:
+      - программист
+      - разработчик
+      - разработк
+      - python
+      - fastapi
+      - typescript
+      - node.js
+      - backend
+      - фронтенд
+      - бэкенд
+      - php
+      - postgresql
+      - docker
+      - mvp
+      - микросервис
 
 skills_positive:
   - python
@@ -197,14 +237,14 @@ keywords_boost:
   playwright: 10
 
 thresholds:
-  # Быстрый отбор: достаточно одного сильного интента
-  min_score_rules: 28
-  min_score_notify: 55
-  min_score_llm: 50
-  max_drafts_per_day: 25
-  max_responses_per_day: 10
-  # Бюджет не указан — не отсекаем; указан ниже floor — отсев
-  reject_if_budget_below_min: true
+  # Быстрый отбор: один сильный интент (~20–28) + буст уже проходит
+  min_score_rules: 20
+  min_score_notify: 40
+  min_score_llm: 35
+  max_drafts_per_day: 40
+  max_responses_per_day: 15
+  # Бюджет не указан — не отсекаем; сильно ниже floor — штраф, не жёсткий бан
+  reject_if_budget_below_min: false
   soft_budget: true
 
 tone: business_b2b

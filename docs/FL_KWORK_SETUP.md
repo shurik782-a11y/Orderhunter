@@ -54,18 +54,14 @@ FL.ru baseline done (... projects marked seen)
 
 Автоотправку формы на FL / Freelance.ru / Freelancehunt не делаем (ToS) — только черновик + ссылка.
 
-## 5. Freelance.ru / Freelancehunt
+## Freelance.ru / Freelancehunt — нужна ли регистрация?
 
-В Railway Variables:
+| Цель | Нужен аккаунт? |
+|------|----------------|
+| **Мониторинг ленты** (бот видит новые заказы) | **Нет** — публичная лента, логин в Variables не нужен |
+| **Откликнуться** (Assist) | **Да** — зарегистрируйтесь на сайте, в карточке «Открыть» → вставить черновик вручную |
 
-```
-FREELANCE_RU_ENABLED=true
-FREELANCE_RU_SEARCH_URL=https://freelance.ru/project/search?q=python
-FREELANCEHUNT_ENABLED=true
-FREELANCEHUNT_PROJECTS_URL=https://freelancehunt.com/projects/skill/veb-programmirovanie/99.html
-```
-
-Логины не обязательны для публичной ленты. Первый прогон — baseline (старые не шлём).
+Вкл. на Railway: `FREELANCE_RU_ENABLED=true` / `FREELANCEHUNT_ENABLED=true`, redeploy. Первый прогон — baseline (старые не шлёт).
 
 ## 6. Если в логах ошибка
 

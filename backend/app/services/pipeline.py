@@ -51,9 +51,10 @@ class OrderPipeline:
         min_llm = float(self.profile.thresholds.get("min_score_llm", 50))
 
         bundle: DraftBundle | None = None
-        score = match.score
+        rules_score = match.score
+        score = rules_score
 
-        if match.score >= min_llm:
+        if rules_score >= min_llm:
             try:
                 bundle = await self.drafter.classify_and_draft(order, match)
                 score = bundle.score
@@ -62,7 +63,21 @@ class OrderPipeline:
                 bundle = self.drafter._template_bundle(order, match)
                 score = bundle.score
 
-        if score < min_llm:
+        # LLM не должен «убивать» сильный rules-матч (fit=false → score≤45)
+        if rules_score >= min_notify and score < min_notify:
+            logger.info(
+                "LLM score %.0f < notify, keeping rules %.0f for %s",
+                score,
+                rules_score,
+                order.title[:80],
+            )
+            score = rules_score
+            if bundle is None:
+                bundle = self.drafter._template_bundle(order, match)
+            else:
+                bundle.score = rules_score
+
+        if score < min_llm and rules_score < min_llm:
             return await self._save_order(
                 order, match, OrderStatus.IGNORED, brief=bundle, score=score
             )
