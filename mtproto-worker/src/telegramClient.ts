@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+
 import { ENV } from "./env.js";
 
 type ProxyOpts = {
@@ -22,6 +24,10 @@ function parseProxy(): ProxyOpts | undefined {
   return out;
 }
 
+export function sessionFingerprint(session: string): string {
+  return createHash("sha256").update(session.trim()).digest("hex").slice(0, 10);
+}
+
 export function isAuthKeyDuplicated(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return /AUTH_KEY_DUPLICATED/i.test(msg);
@@ -34,13 +40,14 @@ export const AUTH_KEY_DUPLICATED_HELP = `
 Повторный Redeploy со СТАРОЙ строкой обычно НЕ помогает — нужна НОВАЯ session.
 
 Что сделать:
-1. Railway → orderhunter-mtproto → Settings → Replicas = 1
-2. Убедитесь, что нигде больше не крутится mtproto с этой session
-3. Локально получите новую session:
+1. Railway → orderhunter-mtproto → STOP / Remove deployment (сначала останови!)
+2. Settings → Replicas = 1
+3. Локально новую session:
      cd mtproto-worker
      npm run telegram:login
-4. Скопируйте новую TELEGRAM_USER_SESSION в Railway Variables (замените старую)
-5. Redeploy orderhunter-mtproto один раз
+   Смотри fingerprint в выводе (sessionFp=...). Он ДОЛЖЕН отличаться от Railway.
+4. Вставь новую TELEGRAM_USER_SESSION в Variables → Save
+5. Start / Redeploy один раз. Пока сервис up — не гоняй login с этой же строкой.
 `;
 
 /** Single shared client — never open two connections with the same StringSession. */
@@ -51,6 +58,11 @@ async function createClient() {
   const proxy = parseProxy();
   const { TelegramClient } = await import("telegram");
   const { StringSession } = await import("telegram/sessions/index.js");
+
+  const fp = sessionFingerprint(ENV.TELEGRAM_USER_SESSION);
+  console.log(
+    `[orderhunter] sessionFp=${fp} len=${ENV.TELEGRAM_USER_SESSION.length} (сверь с выводом telegram:login)`,
+  );
 
   // autoReconnect MUST stay false: on AUTH_KEY_DUPLICATED gramJS reconnect
   // keeps the crash-loop alive and fights the sleep/exit path.
@@ -76,6 +88,9 @@ async function createClient() {
     }
     if (isAuthKeyDuplicated(e)) {
       console.error(AUTH_KEY_DUPLICATED_HELP);
+      console.error(
+        `[orderhunter] текущий sessionFp=${fp} — если после login fingerprint тот же, Variables не обновились`,
+      );
     }
     throw e;
   }

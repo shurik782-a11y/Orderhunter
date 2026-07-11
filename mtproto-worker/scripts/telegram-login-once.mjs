@@ -4,6 +4,7 @@
  *
  * По умолчанию — QR (без SMS). Код по номеру чаще приходит В ПРИЛОЖЕНИЕ Telegram, не SMS.
  */
+import { createHash } from "crypto";
 import { config } from "dotenv";
 import fs from "fs";
 import path from "path";
@@ -195,10 +196,19 @@ function saveSession(client) {
   const session = client.session.save();
   const outFile = path.join(repoRoot, ".telegram-user-session.local.txt");
   fs.writeFileSync(outFile, session + "\n", { encoding: "utf8", mode: 0o600 });
-  console.log(`\nTELEGRAM_USER_SESSION:\n${session}\n\nСохранено: ${outFile}\n`);
+  const fp = createHash("sha256").update(session.trim()).digest("hex").slice(0, 10);
+  console.log(`\nTELEGRAM_USER_SESSION:\n${session}\n`);
+  console.log(`sessionFp=${fp}  len=${session.length}`);
+  console.log(`Сохранено: ${outFile}`);
   console.log(
-    "Одну session-строку нельзя использовать в двух процессах.\n" +
-      "Нужны два места — login ещё раз → вторая строка.\n",
+    "\nВАЖНО:\n" +
+      "1) Сначала STOP orderhunter-mtproto в Railway\n" +
+      "2) Вставь эту строку в TELEGRAM_USER_SESSION (целиком)\n" +
+      "3) Redeploy один раз\n" +
+      "4) В логах должно быть sessionFp=" +
+      fp +
+      " — если другой fp, Variables не подхватились\n" +
+      "Одну session нельзя в двух местах. Нужны два хоста — login ещё раз.\n",
   );
 }
 
