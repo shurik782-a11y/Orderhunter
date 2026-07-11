@@ -22,46 +22,60 @@ function parseProxy(): ProxyOpts | undefined {
   return out;
 }
 
-function isAuthKeyDuplicated(err: unknown): boolean {
+export function isAuthKeyDuplicated(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return /AUTH_KEY_DUPLICATED/i.test(msg);
 }
 
+export const AUTH_KEY_DUPLICATED_HELP = `
+[orderhunter] AUTH_KEY_DUPLICATED — эта TELEGRAM_USER_SESSION уже использовалась
+параллельно (2 реплики / локально + Railway) и Telegram её заблокировал.
+
+Повторный Redeploy со СТАРОЙ строкой обычно НЕ помогает — нужна НОВАЯ session.
+
+Что сделать:
+1. Railway → orderhunter-mtproto → Settings → Replicas = 1
+2. Убедитесь, что нигде больше не крутится mtproto с этой session
+3. Локально получите новую session:
+     cd mtproto-worker
+     npm run telegram:login
+4. Скопируйте новую TELEGRAM_USER_SESSION в Railway Variables (замените старую)
+5. Redeploy orderhunter-mtproto один раз
+`;
+
 /** Single shared client — never open two connections with the same StringSession. */
-let clientPromise: Promise<Awaited<ReturnType<typeof createClient>>> | null = null;
+let clientPromise: Promise<Awaited<ReturnType<typeof createClient>>> | null =
+  null;
 
 async function createClient() {
   const proxy = parseProxy();
   const { TelegramClient } = await import("telegram");
   const { StringSession } = await import("telegram/sessions/index.js");
+
+  // autoReconnect MUST stay false: on AUTH_KEY_DUPLICATED gramJS reconnect
+  // keeps the crash-loop alive and fights the sleep/exit path.
   const client = new TelegramClient(
     new StringSession(ENV.TELEGRAM_USER_SESSION),
     ENV.TELEGRAM_API_ID,
     ENV.TELEGRAM_API_HASH,
     {
-      connectionRetries: 3,
-      autoReconnect: true,
+      connectionRetries: 1,
+      autoReconnect: false,
       ...(proxy ? { proxy } : {}),
       useWSS: !proxy,
     },
   );
+
   try {
     await client.connect();
   } catch (e) {
+    try {
+      await client.disconnect();
+    } catch {
+      /* ignore */
+    }
     if (isAuthKeyDuplicated(e)) {
-      console.error(`
-[orderhunter] AUTH_KEY_DUPLICATED — эта TELEGRAM_USER_SESSION уже подключена где-то ещё.
-
-Что сделать:
-1. Railway → orderhunter-mtproto → Settings → Replicas = 1 (не больше)
-2. Остановите локальный mtproto-worker / другой хост с той же session
-3. Подождите 1–2 минуты, затем Redeploy
-4. Если не помогло — перелогиньтесь:
-   cd mtproto-worker && npm run telegram:login
-   и обновите TELEGRAM_USER_SESSION в Railway
-`);
-      // Slow down Railway crash-loop while the other connection dies
-      await new Promise((r) => setTimeout(r, 120_000));
+      console.error(AUTH_KEY_DUPLICATED_HELP);
     }
     throw e;
   }
