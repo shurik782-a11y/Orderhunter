@@ -1,10 +1,8 @@
-# Каналы для мониторинга.
-# 1) Подпишитесь аккаунтом TELEGRAM_USER_SESSION на каждый enabled-канал
-# 2) enabled: true только для реальных @username (проверьте t.me/<name>)
-# Невалидные username больше не роняют воркер — просто skip.
+# Каналы для мониторинга (только рабочие / публичные username).
+# 1) Подпишитесь аккаунтом TELEGRAM_USER_SESSION на каждый канал
+# 2) Невалидные больше не держим в списке — иначе шум в логах skip
 
 channels:
-  # --- рабочие (проверьте подписку) ---
   - username: freelance_orders
     title: Фриланс-проекты
     enabled: true
@@ -40,7 +38,6 @@ channels:
     enabled: true
     categories: [dev, remote]
 
-  # --- новые (подпишитесь session-аккаунтом, затем redeploy mtproto) ---
   - username: progjob
     title: Работа для программистов
     enabled: true
@@ -61,11 +58,6 @@ channels:
     enabled: true
     categories: [web]
 
-  - username: js_jobs
-    title: JS jobs (USERNAME_INVALID)
-    enabled: false
-    categories: [js, web]
-
   - username: frontend_jobs
     title: Frontend jobs
     enabled: true
@@ -81,7 +73,6 @@ channels:
     enabled: true
     categories: [dev]
 
-  # --- доп. IT/freelance (подпишитесь session-аккаунтом; невалидные → skip) ---
   - username: php_jobs
     title: PHP jobs
     enabled: true
@@ -97,22 +88,11 @@ channels:
     enabled: true
     categories: [python]
 
-  - username: devops_vacancy
-    title: DevOps / infra
-    enabled: true
-    categories: [devops]
-
   - username: remote_it_jobs
     title: Remote IT jobs
     enabled: true
     categories: [dev, remote]
 
-  - username: freelancestart
-    title: Freelance start
-    enabled: true
-    categories: [freelance]
-
-  # --- новые площадки/чаты (проверены t.me, 2026-07) ---
   - username: it_zakazy
     title: Заказы программирование / IT
     enabled: true
@@ -184,66 +164,9 @@ channels:
     categories: [frontend, web]
 
   - username: kwork_orders
-    title: Kwork заказы (мало подписчиков)
+    title: Kwork заказы
     enabled: true
     categories: [kwork, aggregator]
-
-  # --- выключены: USERNAME_INVALID / не существуют / шум ---
-  - username: freelance_ru
-    title: (invalid as TG channel)
-    enabled: false
-    categories: []
-
-  - username: freelancehunt
-    title: (invalid as TG channel)
-    enabled: false
-    categories: []
-
-  - username: telegram_jobs
-    title: (invalid)
-    enabled: false
-    categories: []
-
-  - username: webdev_freelance
-    enabled: false
-    categories: [web]
-
-  - username: tgfreelance
-    enabled: false
-    categories: [bot]
-
-  - username: ordersfordevelopers
-    enabled: false
-    categories: [dev]
-
-  - username: freelancergo
-    enabled: false
-    categories: [dev]
-
-  - username: it_jobs_ru
-    enabled: false
-    categories: [dev]
-
-  - username: python_django_jobs
-    enabled: false
-    categories: [python]
-
-  - username: react_jobs
-    enabled: false
-    categories: [web]
-
-  - username: nodejs_jobs
-    enabled: false
-    categories: [web]
-
-  - username: flru_orders
-    enabled: false
-    categories: [aggregator]
-
-  - username: zerocode_jobs
-    title: Zero-code jobs (шум для fullstack — по желанию)
-    enabled: false
-    categories: [nocode]
 
 poll_interval_seconds: 90
 realtime_events: true
